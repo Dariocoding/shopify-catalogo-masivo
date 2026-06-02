@@ -1,0 +1,45 @@
+# Catálogo Masivo — deploy en Dokploy (tipo: Docker Compose)
+#
+# En Dokploy:
+# 1. Crear aplicación → Docker Compose → pegar ruta a este archivo o repo
+# 2. Pestaña Environment → copiar variables desde dokploy.env.example
+# 3. Pestaña Domains → dominio HTTPS, Container Port: 3000
+# 4. SHOPIFY_APP_URL debe ser exactamente la URL del dominio (https://...)
+# 5. Tras el primer deploy: npm run deploy (local) para sincronizar shopify.app.toml
+
+services:
+  catalogo-masivo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # Ruta fija en el volumen nombrado (no sobrescribir en .env salvo que sepas lo que haces)
+      DATABASE_URL: file:/data/database.sqlite
+    volumes:
+      - catalogo-sqlite-data:/data
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - dokploy-network
+
+volumes:
+  catalogo-sqlite-data:
+
+networks:
+  dokploy-network:
+    external: true
