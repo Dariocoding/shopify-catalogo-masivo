@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "17fee66f4e808677b46539756c4b47f5"
-application_url = "https://example.com"
+application_url = "https://catalogo.zenmail.to"
 embedded = true
 name = "Catálogo Masivo"
 handle = "catalogo-masivo"
@@ -21,7 +21,7 @@ api_version = "2026-07"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://catalogo.zenmail.to/api/auth" ]
 
 [build]
 include_config_on_deploy = true
