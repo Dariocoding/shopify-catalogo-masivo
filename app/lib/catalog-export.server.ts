@@ -25,6 +25,7 @@ type ExportProduct = {
   variants: {
     nodes: Array<{
       sku: string | null;
+      inventoryQuantity: number | null;
       price: string;
       compareAtPrice: string | null;
       barcode: string | null;
@@ -76,6 +77,7 @@ const PRODUCT_FIELDS = `
   variants(first: 1) {
     nodes {
       sku
+      inventoryQuantity
       price
       compareAtPrice
       barcode
@@ -137,6 +139,10 @@ function productToRow(
     status: product.status,
     tags: product.tags.join(", "),
     sku: variant?.sku ?? "",
+    stock:
+      variant?.inventoryQuantity != null
+        ? String(variant.inventoryQuantity)
+        : "",
     price: variant?.price ?? "",
     compare_at_price: variant?.compareAtPrice ?? "",
     barcode: variant?.barcode ?? "",

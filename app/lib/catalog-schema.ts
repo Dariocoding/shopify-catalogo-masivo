@@ -16,6 +16,7 @@ export const CATALOG_COLUMNS = [
   { key: "status", label: "status", required: false },
   { key: "tags", label: "tags", required: false },
   { key: "sku", label: "sku", required: false },
+  { key: "stock", label: "stock", required: false },
   { key: "price", label: "price", required: false },
   { key: "compare_at_price", label: "compare_at_price", required: false },
   { key: "barcode", label: "barcode", required: false },
@@ -28,6 +29,7 @@ export const EXPORT_CATALOG_COLUMNS = [
   { key: "vendor", label: "vendor", maxWidth: 18 },
   { key: "product_type", label: "product_type", maxWidth: 16 },
   { key: "tags", label: "tags", maxWidth: 22 },
+  { key: "stock", label: "stock", maxWidth: 10 },
   { key: "price", label: "price", maxWidth: 12 },
 ] as const;
 
@@ -211,6 +213,13 @@ export function validateCatalogRow(
       row: rowNum,
       field: "status",
       message: "status debe ser ACTIVE, DRAFT o ARCHIVED",
+    });
+  }
+  if (row.stock && Number.isNaN(Number(row.stock))) {
+    errors.push({
+      row: rowNum,
+      field: "stock",
+      message: "stock debe ser numérico",
     });
   }
   if (row.price && Number.isNaN(Number(row.price))) {
