@@ -23,9 +23,18 @@ export type ImportBatchResult = {
   validationErrors: RowValidationError[];
 };
 
+type ImportVariantContext = {
+  variantId?: string;
+  locationId?: string;
+};
+
 const PRODUCT_SET = `#graphql
-  mutation CatalogProductSet($input: ProductSetInput!, $identifier: ProductSetIdentifiers) {
-    productSet(input: $input, identifier: $identifier) {
+  mutation CatalogProductSet(
+    $input: ProductSetInput!
+    $identifier: ProductSetIdentifiers
+    $synchronous: Boolean!
+  ) {
+    productSet(synchronous: $synchronous, input: $input, identifier: $identifier) {
       product {
         id
         handle
@@ -38,15 +47,48 @@ const PRODUCT_SET = `#graphql
   }
 `;
 
+const PRIMARY_LOCATION_QUERY = `#graphql
+  query ImportPrimaryLocation {
+    locations(first: 1) {
+      nodes {
+        id
+      }
+    }
+  }
+`;
+
+const PRODUCT_VARIANT_QUERY = `#graphql
+  query ImportProductVariant($handle: String!) {
+    productByHandle(handle: $handle) {
+      variants(first: 1) {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+`;
+
 function normalizeStatus(status: string): "ACTIVE" | "DRAFT" | "ARCHIVED" {
   const upper = status.trim().toUpperCase();
   if (upper === "DRAFT" || upper === "ARCHIVED") return upper;
   return "ACTIVE";
 }
 
+function rowTouchesVariantFields(row: CatalogRow): boolean {
+  return (
+    row.sku !== "" ||
+    row.price !== "" ||
+    row.stock !== "" ||
+    row.compare_at_price !== "" ||
+    row.barcode !== ""
+  );
+}
+
 function buildProductSetInput(
   row: CatalogRow,
   metafields: { namespace: string; key: string; value: string }[],
+  context: ImportVariantContext = {},
 ) {
   const tags = row.tags
     ? row.tags.split(",").map((t) => t.trim()).filter(Boolean)
@@ -56,10 +98,21 @@ function buildProductSetInput(
     optionValues: [{ optionName: "Title", name: "Default Title" }],
   };
 
-  if (row.sku) variant.sku = row.sku;
-  if (row.price) variant.price = row.price;
-  if (row.compare_at_price) variant.compareAtPrice = row.compare_at_price;
-  if (row.barcode) variant.barcode = row.barcode;
+  if (context.variantId) variant.id = context.variantId;
+  if (row.sku !== "") variant.sku = row.sku;
+  if (row.price !== "") variant.price = row.price;
+  if (row.compare_at_price !== "") variant.compareAtPrice = row.compare_at_price;
+  if (row.barcode !== "") variant.barcode = row.barcode;
+
+  if (row.stock !== "" && context.locationId) {
+    variant.inventoryQuantities = [
+      {
+        locationId: context.locationId,
+        name: "available",
+        quantity: Number.parseInt(row.stock, 10),
+      },
+    ];
+  }
 
   const input: Record<string, unknown> = {
     handle: row.handle,
@@ -102,6 +155,25 @@ function metafieldsForRow(
     .filter((x): x is NonNullable<typeof x> => x !== null);
 }
 
+async function fetchPrimaryLocationId(
+  graphql: AdminGraphql,
+): Promise<string | null> {
+  const response = await graphql(PRIMARY_LOCATION_QUERY);
+  const json = await response.json();
+  return json.data?.locations?.nodes?.[0]?.id ?? null;
+}
+
+async function fetchVariantIdByHandle(
+  graphql: AdminGraphql,
+  handle: string,
+): Promise<string | null> {
+  const response = await graphql(PRODUCT_VARIANT_QUERY, {
+    variables: { handle },
+  });
+  const json = await response.json();
+  return json.data?.productByHandle?.variants?.nodes?.[0]?.id ?? null;
+}
+
 export async function importCatalogBatch(
   graphql: AdminGraphql,
   parsed: ParsedCatalog,
@@ -111,6 +183,12 @@ export async function importCatalogBatch(
   const validationErrors = [...parsed.errors];
   const results: ImportRowResult[] = [];
   const end = Math.min(startIndex + batchSize, parsed.rows.length);
+  const batchRows = parsed.rows.slice(startIndex, end);
+
+  const needsLocation = batchRows.some((row) => row.stock !== "");
+  const locationId = needsLocation
+    ? await fetchPrimaryLocationId(graphql)
+    : null;
 
   for (let i = startIndex; i < end; i++) {
     const row = parsed.rows[i];
@@ -126,12 +204,37 @@ export async function importCatalogBatch(
       continue;
     }
 
+    if (row.stock !== "" && !locationId) {
+      results.push({
+        row: rowNum,
+        handle: row.handle,
+        success: false,
+        errors: [
+          "No se encontró una ubicación de inventario para actualizar stock.",
+        ],
+      });
+      continue;
+    }
+
     const metafields = metafieldsForRow(parsed, row);
 
     try {
-      const input = buildProductSetInput(row, metafields);
+      let variantId: string | undefined;
+      if (rowTouchesVariantFields(row)) {
+        const existingVariantId = await fetchVariantIdByHandle(
+          graphql,
+          row.handle,
+        );
+        if (existingVariantId) variantId = existingVariantId;
+      }
+
+      const input = buildProductSetInput(row, metafields, {
+        variantId,
+        locationId: locationId ?? undefined,
+      });
       const response = await graphql(PRODUCT_SET, {
         variables: {
+          synchronous: true,
           identifier: { handle: row.handle },
           input,
         },

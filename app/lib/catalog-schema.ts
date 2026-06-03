@@ -26,7 +26,7 @@ export const CATALOG_COLUMNS = [
 export const EXPORT_CATALOG_COLUMNS = [
   { key: "handle", label: "handle", maxWidth: 26 },
   { key: "title", label: "title", maxWidth: 52 },
-  { key: "vendor", label: "vendor", maxWidth: 18 },
+  { key: "sku", label: "sku", maxWidth: 18 },
   { key: "product_type", label: "product_type", maxWidth: 16 },
   { key: "tags", label: "tags", maxWidth: 22 },
   { key: "stock", label: "stock", maxWidth: 10 },
