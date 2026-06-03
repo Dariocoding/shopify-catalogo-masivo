@@ -120,7 +120,17 @@ export function metafieldHeader(namespace: string, key: string): string {
   return `${METAFIELD_PREFIX}${namespace}.${key}`;
 }
 
-export function parseCatalogCsv(text: string): ParsedCatalog {
+/** Banner y otros metafields fuera del catálogo: no se leen ni se validan. */
+function isSilentlyIgnoredImportHeader(header: string): boolean {
+  if (header === "metafield.custom.banner") return true;
+  const parsed = parseMetafieldHeader(header);
+  return parsed?.namespace === "custom" && parsed.key === "banner";
+}
+
+export function parseCatalogCsv(
+  text: string,
+  allowedMetafieldHeaders: Set<string> = new Set(),
+): ParsedCatalog {
   const lines = text
     .replace(/^\uFEFF/, "")
     .split(/\r?\n/)
@@ -139,9 +149,16 @@ export function parseCatalogCsv(text: string): ParsedCatalog {
   }
 
   const headers = parseCsvLine(lines[0]).map((h) => h.trim());
-  const unknown = headers.filter(
-    (h) => !COLUMN_KEYS.has(h) && !parseMetafieldHeader(h),
-  );
+  const unknown = headers.filter((header) => {
+    if (COLUMN_KEYS.has(header)) return false;
+    if (isSilentlyIgnoredImportHeader(header)) return false;
+    const metafield = parseMetafieldHeader(header);
+    if (!metafield) return true;
+    return (
+      allowedMetafieldHeaders.size > 0 &&
+      !allowedMetafieldHeaders.has(header)
+    );
+  });
   if (unknown.length > 0) {
     errors.push({
       row: 1,
@@ -161,6 +178,13 @@ export function parseCatalogCsv(text: string): ParsedCatalog {
 
   const metafieldColumns = headers
     .map((header) => {
+      if (isSilentlyIgnoredImportHeader(header)) return null;
+      if (
+        allowedMetafieldHeaders.size > 0 &&
+        !allowedMetafieldHeaders.has(header)
+      ) {
+        return null;
+      }
       const parsed = parseMetafieldHeader(header);
       return parsed ? { header, ...parsed } : null;
     })
@@ -177,7 +201,12 @@ export function parseCatalogCsv(text: string): ParsedCatalog {
       const value = (values[idx] ?? "").trim();
       if (COLUMN_KEYS.has(header)) {
         row[header as CatalogColumnKey] = value;
-      } else if (parseMetafieldHeader(header)) {
+      } else if (
+        !isSilentlyIgnoredImportHeader(header) &&
+        parseMetafieldHeader(header) &&
+        (allowedMetafieldHeaders.size === 0 ||
+          allowedMetafieldHeaders.has(header))
+      ) {
         (row as Record<string, string>)[header] = value;
       }
     });
@@ -256,12 +285,23 @@ export function sanitizeExportFilename(
   return `${base}.xlsx`;
 }
 
-export function catalogExportRowsToSheetData(rows: CatalogRow[]): string[][] {
-  const headers = EXPORT_CATALOG_COLUMNS.map((c) => c.key);
+export function catalogExportRowsToSheetData(
+  rows: CatalogRow[],
+  metafieldHeaders: string[] = [],
+): string[][] {
+  const exportColumnKeys = EXPORT_CATALOG_COLUMNS.map((c) => c.key);
+  const exportColumnKeySet = new Set<string>(exportColumnKeys);
+  const headers = [...exportColumnKeys, ...metafieldHeaders];
+
   return [
     headers,
     ...rows.map((row) =>
-      EXPORT_CATALOG_COLUMNS.map((col) => row[col.key] ?? ""),
+      headers.map((header) => {
+        if (exportColumnKeySet.has(header)) {
+          return row[header as ExportCatalogColumnKey] ?? "";
+        }
+        return (row as Record<string, string>)[header] ?? "";
+      }),
     ),
   ];
 }

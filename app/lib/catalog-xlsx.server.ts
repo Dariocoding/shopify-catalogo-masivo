@@ -64,12 +64,21 @@ function applySheetFormatting(
   };
 }
 
-export function buildCatalogXlsxBuffer(rows: CatalogRow[]): Buffer {
-  const sheetData = catalogExportRowsToSheetData(rows);
-  const widthRules = EXPORT_CATALOG_COLUMNS.map((col) => ({
-    header: col.key,
-    maxWidth: col.maxWidth,
-  }));
+export function buildCatalogXlsxBuffer(
+  rows: CatalogRow[],
+  metafieldHeaders: string[] = [],
+): Buffer {
+  const sheetData = catalogExportRowsToSheetData(rows, metafieldHeaders);
+  const widthRules = [
+    ...EXPORT_CATALOG_COLUMNS.map((col) => ({
+      header: col.key,
+      maxWidth: col.maxWidth,
+    })),
+    ...metafieldHeaders.map((header) => ({
+      header,
+      maxWidth: 40,
+    })),
+  ];
   const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
   applySheetFormatting(worksheet, sheetData, widthRules);
   const workbook = XLSX.utils.book_new();

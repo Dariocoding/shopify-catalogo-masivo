@@ -1,4 +1,9 @@
 import {
+  buildMetafieldTypeMap,
+  fetchCatalogProductMetafieldDefinitions,
+  metafieldHeadersFromDefinitions,
+} from "./catalog-metafields.server";
+import {
   IMPORT_BATCH_SIZE,
   type CatalogRow,
   type ParsedCatalog,
@@ -89,6 +94,7 @@ function buildProductSetInput(
   row: CatalogRow,
   metafields: { namespace: string; key: string; value: string }[],
   context: ImportVariantContext = {},
+  metafieldTypes: Map<string, string> = new Map(),
 ) {
   const tags = row.tags
     ? row.tags.split(",").map((t) => t.trim()).filter(Boolean)
@@ -133,7 +139,9 @@ function buildProductSetInput(
     input.metafields = metafields.map((mf) => ({
       namespace: mf.namespace,
       key: mf.key,
-      type: "single_line_text_field",
+      type:
+        metafieldTypes.get(`${mf.namespace}.${mf.key}`) ??
+        "single_line_text_field",
       value: mf.value,
     }));
   }
@@ -184,6 +192,16 @@ export async function importCatalogBatch(
   const results: ImportRowResult[] = [];
   const end = Math.min(startIndex + batchSize, parsed.rows.length);
   const batchRows = parsed.rows.slice(startIndex, end);
+  const hasMetafieldColumns = parsed.metafieldColumns.length > 0;
+  const catalogMetafieldDefinitions = hasMetafieldColumns
+    ? await fetchCatalogProductMetafieldDefinitions(graphql)
+    : [];
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(catalogMetafieldDefinitions),
+  );
+  const metafieldTypes = hasMetafieldColumns
+    ? buildMetafieldTypeMap(catalogMetafieldDefinitions)
+    : new Map<string, string>();
 
   const needsLocation = batchRows.some((row) => row.stock !== "");
   const locationId = needsLocation
@@ -216,7 +234,11 @@ export async function importCatalogBatch(
       continue;
     }
 
-    const metafields = metafieldsForRow(parsed, row);
+    const metafields = metafieldsForRow(parsed, row).filter((mf) =>
+      allowedMetafieldHeaders.has(
+        `metafield.${mf.namespace}.${mf.key}`,
+      ),
+    );
 
     try {
       let variantId: string | undefined;
@@ -228,10 +250,15 @@ export async function importCatalogBatch(
         if (existingVariantId) variantId = existingVariantId;
       }
 
-      const input = buildProductSetInput(row, metafields, {
-        variantId,
-        locationId: locationId ?? undefined,
-      });
+      const input = buildProductSetInput(
+        row,
+        metafields,
+        {
+          variantId,
+          locationId: locationId ?? undefined,
+        },
+        metafieldTypes,
+      );
       const response = await graphql(PRODUCT_SET, {
         variables: {
           synchronous: true,

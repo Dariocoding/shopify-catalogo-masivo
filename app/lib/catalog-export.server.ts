@@ -4,6 +4,11 @@ import {
   EMPTY_EXPORT_FILTERS,
 } from "./catalog-export-filters";
 import {
+  fetchCatalogProductMetafieldDefinitions,
+  mergeMetafieldHeaders,
+  metafieldHeadersFromDefinitions,
+} from "./catalog-metafields.server";
+import {
   EXPORT_PAGE_SIZE,
   metafieldHeader,
   type CatalogRow,
@@ -83,7 +88,7 @@ const PRODUCT_FIELDS = `
       barcode
     }
   }
-  metafields(first: 25) {
+  metafields(first: 100) {
     nodes {
       namespace
       key
@@ -128,6 +133,7 @@ const COLLECTIONS_QUERY = `#graphql
 function productToRow(
   product: ExportProduct,
   metafieldHeaderSet: Set<string>,
+  allowedMetafieldHeaders: Set<string>,
 ): CatalogRow {
   const variant = product.variants.nodes[0];
   const row: CatalogRow & Record<string, string> = {
@@ -150,6 +156,7 @@ function productToRow(
 
   for (const mf of product.metafields.nodes) {
     const header = metafieldHeader(mf.namespace, mf.key);
+    if (!allowedMetafieldHeaders.has(header)) continue;
     metafieldHeaderSet.add(header);
     row[header] = mf.value;
   }
@@ -207,20 +214,24 @@ export async function getExportSummary(
   previewSize = 5,
 ): Promise<ExportSummary> {
   const query = buildProductSearchQuery(filters);
-  const [totalCount, previewPage] = await Promise.all([
+  const [totalCount, previewPage, definitions] = await Promise.all([
     getProductCount(graphql, query),
     fetchProductPage(graphql, previewSize, null, query),
+    fetchCatalogProductMetafieldDefinitions(graphql),
   ]);
 
-  const metafieldHeaderSet = new Set<string>();
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(definitions),
+  );
+  const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
   const preview = previewPage.nodes.map((product) =>
-    productToRow(product, metafieldHeaderSet),
+    productToRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
   );
 
   return {
     preview,
     productCount: totalCount,
-    metafieldHeaders: [...metafieldHeaderSet].sort(),
+    metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
   };
 }
 
@@ -230,6 +241,7 @@ export async function exportCatalogBatch(
   cursor: string | null,
   exportedSoFar: number,
   includeTotal = false,
+  metafieldHeadersSeed: string[] = [],
 ): Promise<ExportBatchResult> {
   const query = buildProductSearchQuery(filters);
   const page = await fetchProductPage(
@@ -239,9 +251,10 @@ export async function exportCatalogBatch(
     query,
   );
 
-  const metafieldHeaderSet = new Set<string>();
+  const metafieldHeaderSet = new Set<string>(metafieldHeadersSeed);
+  const allowedMetafieldHeaders = new Set(metafieldHeadersSeed);
   const rows = page.nodes.map((product) =>
-    productToRow(product, metafieldHeaderSet),
+    productToRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
   );
 
   const exportedCount = exportedSoFar + rows.length;
@@ -263,7 +276,11 @@ export async function exportCatalog(
   graphql: AdminGraphql,
   filters: ExportFilters = EMPTY_EXPORT_FILTERS,
 ): Promise<ExportResult> {
-  const metafieldHeaderSet = new Set<string>();
+  const definitions = await fetchCatalogProductMetafieldDefinitions(graphql);
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(definitions),
+  );
+  const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
   const rows: CatalogRow[] = [];
   const query = buildProductSearchQuery(filters);
   let after: string | null = null;
@@ -273,7 +290,9 @@ export async function exportCatalog(
     const page = await fetchProductPage(graphql, EXPORT_PAGE_SIZE, after, query);
 
     for (const product of page.nodes) {
-      rows.push(productToRow(product, metafieldHeaderSet));
+      rows.push(
+        productToRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
+      );
     }
 
     hasNextPage = page.hasNextPage;
@@ -282,7 +301,7 @@ export async function exportCatalog(
 
   return {
     rows,
-    metafieldHeaders: [...metafieldHeaderSet].sort(),
+    metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
     productCount: rows.length,
   };
 }

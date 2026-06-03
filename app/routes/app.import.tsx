@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Link, useActionData, useFetcher } from "react-router";
+import { Link, useActionData, useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -18,6 +18,10 @@ import {
 } from "../components/catalog-ui";
 import { authenticate } from "../shopify.server";
 import { importCatalogBatch, type ImportRowResult } from "../lib/catalog-import.server";
+import {
+  fetchCatalogProductMetafieldDefinitions,
+  metafieldHeadersFromDefinitions,
+} from "../lib/catalog-metafields.server";
 import {
   CATALOG_COLUMNS,
   IMPORT_BATCH_SIZE,
@@ -43,7 +47,7 @@ type ImportData = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
 
   const sampleRow = Object.fromEntries(
     CATALOG_COLUMNS.map((c) => [c.key, ""]),
@@ -54,9 +58,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   sampleRow.price = "19.99";
   sampleRow.sku = "SKU-EJEMPLO";
 
+  const metafieldDefinitions = await fetchCatalogProductMetafieldDefinitions(
+    admin.graphql,
+  );
+
   return {
     batchSize: IMPORT_BATCH_SIZE,
     templateCsv: rowsToCsv([sampleRow as never]),
+    metafieldColumns: metafieldDefinitions.map((definition) => ({
+      name: definition.name,
+      header: `metafield.${definition.namespace}.${definition.key}`,
+    })),
   };
 };
 
@@ -70,7 +82,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Sube un archivo Excel con contenido." };
   }
 
-  const parsed = parseCatalogCsv(csvText);
+  const catalogMetafieldDefinitions =
+    await fetchCatalogProductMetafieldDefinitions(admin.graphql);
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(catalogMetafieldDefinitions),
+  );
+  const parsed = parseCatalogCsv(csvText, allowedMetafieldHeaders);
 
   if (intent === "preview") {
     return {
@@ -105,6 +122,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function ImportPage() {
+  const { metafieldColumns = [] } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -233,6 +251,14 @@ export default function ImportPage() {
       <CatalogPage>
         <s-section heading="Importar catálogo">
           <CatalogStack>
+            {metafieldColumns.length > 0 && (
+              <CatalogBodyText>
+                Puedes editar en masa el metafield{" "}
+                <strong>{metafieldColumns[0]?.name}</strong> (columna{" "}
+                <code>{metafieldColumns[0]?.header}</code>).
+              </CatalogBodyText>
+            )}
+
             <CatalogUpload
               label="Archivo Excel"
               accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
@@ -267,6 +293,22 @@ export default function ImportPage() {
                 {preview.parsed.rows.length === 1 ? "" : "s"} listo
                 {preview.parsed.rows.length === 1 ? "" : "s"} para importar.
               </CatalogBodyText>
+
+              {preview.parsed.metafieldColumns.length > 0 && (
+                <CatalogBodyText>
+                  Metafields en el archivo:{" "}
+                  {preview.parsed.metafieldColumns
+                    .map((column) => {
+                      const label =
+                        metafieldColumns.find(
+                          (item) => item.header === column.header,
+                        )?.name ?? column.header;
+                      return label;
+                    })
+                    .join(", ")}
+                  .
+                </CatalogBodyText>
+              )}
 
               {preview.parsed.errors.length > 0 && (
                 <s-box padding="base" background="subdued" borderRadius="base">

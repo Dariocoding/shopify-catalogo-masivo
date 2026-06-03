@@ -10,6 +10,7 @@ import { Link, useLoaderData } from "react-router";
 
 import { CatalogFiltersPanel } from "../components/catalog-filters";
 import {
+  CatalogBodyText,
   CatalogField,
   CatalogHero,
   CatalogInput,
@@ -38,6 +39,7 @@ import {
   getCollectionOptions,
   getExportSummary,
 } from "../lib/catalog-export.server";
+import { fetchCatalogProductMetafieldDefinitions } from "../lib/catalog-metafields.server";
 import { sanitizeExportFilename } from "../lib/catalog-schema";
 import { downloadBlob } from "../lib/download-blob.client";
 import { authenticate } from "../shopify.server";
@@ -57,7 +59,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getCollectionOptions(admin.graphql),
     listExportHistory(session.shop),
   ]);
-  const summary = await getExportSummary(admin.graphql);
+  const [summary, metafieldDefinitions] = await Promise.all([
+    getExportSummary(admin.graphql),
+    fetchCatalogProductMetafieldDefinitions(admin.graphql),
+  ]);
 
   const collectionTitles = Object.fromEntries(
     collections.map((collection) => [collection.id, collection.title]),
@@ -69,6 +74,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     collections,
     collectionTitles,
     history,
+    metafieldColumns: metafieldDefinitions.map((definition) => ({
+      name: definition.name,
+      header: `metafield.${definition.namespace}.${definition.key}`,
+    })),
   };
 };
 
@@ -120,6 +129,7 @@ export default function ExportPage() {
     collections = [],
     collectionTitles = {},
     history: initialHistory = [],
+    metafieldColumns = [],
   } = loaderData;
 
   const shopify = useAppBridge();
@@ -263,6 +273,15 @@ export default function ExportPage() {
                 autoComplete="off"
               />
             </CatalogField>
+
+            {metafieldColumns.length > 0 && (
+              <CatalogBodyText>
+                El Excel incluye el metafield{" "}
+                <strong>{metafieldColumns[0]?.name}</strong> (columna{" "}
+                <code>{metafieldColumns[0]?.header}</code>). Edítalo e impórtalo
+                de nuevo.
+              </CatalogBodyText>
+            )}
 
             {exporting && (
               <CatalogProgress

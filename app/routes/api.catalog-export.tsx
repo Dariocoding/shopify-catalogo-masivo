@@ -32,7 +32,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
 
     const result = await exportCatalog(admin.graphql, filters);
-    const buffer = buildCatalogXlsxBuffer(result.rows);
+    const buffer = buildCatalogXlsxBuffer(
+      result.rows,
+      result.metafieldHeaders,
+    );
 
     await recordExportHistory(session.shop, {
       filename,
