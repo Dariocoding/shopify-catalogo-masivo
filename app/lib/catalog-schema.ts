@@ -1,6 +1,8 @@
 /**
  * Formato propio de catálogo (Excel).
- * Una fila = un producto con su variante principal (primera variante).
+ * Una fila = un producto. Los campos sku, stock, price, compare_at_price y barcode
+ * aplican solo a la primera variante; las opciones del producto (talla, color, etc.)
+ * no se modifican en la importación.
  */
 
 /** Tamaño de página al paginar productos en Shopify Admin GraphQL (máx. 250). */

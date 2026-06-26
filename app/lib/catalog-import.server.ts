@@ -28,7 +28,13 @@ export type ImportBatchResult = {
   validationErrors: RowValidationError[];
 };
 
+type ProductImportContext = {
+  exists: boolean;
+  firstVariantId?: string;
+};
+
 type ImportVariantContext = {
+  isExistingProduct: boolean;
   variantId?: string;
   locationId?: string;
 };
@@ -62,9 +68,10 @@ const PRIMARY_LOCATION_QUERY = `#graphql
   }
 `;
 
-const PRODUCT_VARIANT_QUERY = `#graphql
-  query ImportProductVariant($handle: String!) {
+const PRODUCT_IMPORT_CONTEXT_QUERY = `#graphql
+  query ImportProductContext($handle: String!) {
     productByHandle(handle: $handle) {
+      id
       variants(first: 1) {
         nodes {
           id
@@ -90,43 +97,40 @@ function rowTouchesVariantFields(row: CatalogRow): boolean {
   );
 }
 
+function applyVariantFieldsFromRow(
+  variant: Record<string, unknown>,
+  row: CatalogRow,
+  locationId?: string,
+): void {
+  if (row.sku !== "") variant.sku = row.sku;
+  if (row.price !== "") variant.price = row.price;
+  if (row.compare_at_price !== "") variant.compareAtPrice = row.compare_at_price;
+  if (row.barcode !== "") variant.barcode = row.barcode;
+
+  if (row.stock !== "" && locationId) {
+    variant.inventoryQuantities = [
+      {
+        locationId,
+        name: "available",
+        quantity: Number.parseInt(row.stock, 10),
+      },
+    ];
+  }
+}
+
 function buildProductSetInput(
   row: CatalogRow,
   metafields: { namespace: string; key: string; value: string }[],
-  context: ImportVariantContext = {},
+  context: ImportVariantContext,
   metafieldTypes: Map<string, string> = new Map(),
 ) {
   const tags = row.tags
     ? row.tags.split(",").map((t) => t.trim()).filter(Boolean)
     : [];
 
-  const variant: Record<string, unknown> = {
-    optionValues: [{ optionName: "Title", name: "Default Title" }],
-  };
-
-  if (context.variantId) variant.id = context.variantId;
-  if (row.sku !== "") variant.sku = row.sku;
-  if (row.price !== "") variant.price = row.price;
-  if (row.compare_at_price !== "") variant.compareAtPrice = row.compare_at_price;
-  if (row.barcode !== "") variant.barcode = row.barcode;
-
-  if (row.stock !== "" && context.locationId) {
-    variant.inventoryQuantities = [
-      {
-        locationId: context.locationId,
-        name: "available",
-        quantity: Number.parseInt(row.stock, 10),
-      },
-    ];
-  }
-
   const input: Record<string, unknown> = {
     handle: row.handle,
     title: row.title,
-    productOptions: [
-      { name: "Title", values: [{ name: "Default Title" }] },
-    ],
-    variants: [variant],
   };
 
   if (row.description_html) input.descriptionHtml = row.description_html;
@@ -144,6 +148,21 @@ function buildProductSetInput(
         "single_line_text_field",
       value: mf.value,
     }));
+  }
+
+  if (!context.isExistingProduct) {
+    const variant: Record<string, unknown> = {
+      optionValues: [{ optionName: "Title", name: "Default Title" }],
+    };
+    applyVariantFieldsFromRow(variant, row, context.locationId);
+    input.productOptions = [
+      { name: "Title", values: [{ name: "Default Title" }] },
+    ];
+    input.variants = [variant];
+  } else if (rowTouchesVariantFields(row) && context.variantId) {
+    const variant: Record<string, unknown> = { id: context.variantId };
+    applyVariantFieldsFromRow(variant, row, context.locationId);
+    input.variants = [variant];
   }
 
   return input;
@@ -171,15 +190,23 @@ async function fetchPrimaryLocationId(
   return json.data?.locations?.nodes?.[0]?.id ?? null;
 }
 
-async function fetchVariantIdByHandle(
+async function fetchProductImportContext(
   graphql: AdminGraphql,
   handle: string,
-): Promise<string | null> {
-  const response = await graphql(PRODUCT_VARIANT_QUERY, {
+): Promise<ProductImportContext> {
+  const response = await graphql(PRODUCT_IMPORT_CONTEXT_QUERY, {
     variables: { handle },
   });
   const json = await response.json();
-  return json.data?.productByHandle?.variants?.nodes?.[0]?.id ?? null;
+  const product = json.data?.productByHandle;
+  if (!product?.id) {
+    return { exists: false };
+  }
+
+  return {
+    exists: true,
+    firstVariantId: product.variants?.nodes?.[0]?.id ?? undefined,
+  };
 }
 
 export async function importCatalogBatch(
@@ -241,20 +268,33 @@ export async function importCatalogBatch(
     );
 
     try {
-      let variantId: string | undefined;
-      if (rowTouchesVariantFields(row)) {
-        const existingVariantId = await fetchVariantIdByHandle(
-          graphql,
-          row.handle,
-        );
-        if (existingVariantId) variantId = existingVariantId;
+      const productContext = await fetchProductImportContext(
+        graphql,
+        row.handle,
+      );
+
+      if (
+        productContext.exists &&
+        rowTouchesVariantFields(row) &&
+        !productContext.firstVariantId
+      ) {
+        results.push({
+          row: rowNum,
+          handle: row.handle,
+          success: false,
+          errors: [
+            "El producto existe pero no tiene variantes para actualizar sku, precio o stock.",
+          ],
+        });
+        continue;
       }
 
       const input = buildProductSetInput(
         row,
         metafields,
         {
-          variantId,
+          isExistingProduct: productContext.exists,
+          variantId: productContext.firstVariantId,
           locationId: locationId ?? undefined,
         },
         metafieldTypes,

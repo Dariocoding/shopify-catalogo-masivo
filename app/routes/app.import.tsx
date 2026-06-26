@@ -251,6 +251,13 @@ export default function ImportPage() {
       <CatalogPage>
         <s-section heading="Importar catálogo">
           <CatalogStack>
+            <CatalogBodyText>
+              Puedes actualizar sku, precio, stock, código de barras y precio
+              comparado de la <strong>primera variante</strong> de cada producto.
+              Las opciones de variante (talla, color, etc.) no se modifican al
+              importar, para no desconfigurar productos con varias variantes.
+            </CatalogBodyText>
+
             {metafieldColumns.length > 0 && (
               <CatalogBodyText>
                 Puedes editar en masa el metafield{" "}
