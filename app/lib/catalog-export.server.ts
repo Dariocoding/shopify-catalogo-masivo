@@ -19,6 +19,16 @@ type AdminGraphql = (
   options?: { variables?: Record<string, unknown> },
 ) => Promise<Response>;
 
+type ExportVariant = {
+  id: string;
+  sku: string | null;
+  inventoryQuantity: number | null;
+  price: string;
+  compareAtPrice: string | null;
+  barcode: string | null;
+  selectedOptions: Array<{ name: string; value: string }>;
+};
+
 type ExportProduct = {
   handle: string;
   title: string;
@@ -28,13 +38,7 @@ type ExportProduct = {
   status: string;
   tags: string[];
   variants: {
-    nodes: Array<{
-      sku: string | null;
-      inventoryQuantity: number | null;
-      price: string;
-      compareAtPrice: string | null;
-      barcode: string | null;
-    }>;
+    nodes: ExportVariant[];
   };
   metafields: {
     nodes: Array<{
@@ -79,13 +83,18 @@ const PRODUCT_FIELDS = `
   productType
   status
   tags
-  variants(first: 1) {
+  variants(first: 100) {
     nodes {
+      id
       sku
       inventoryQuantity
       price
       compareAtPrice
       barcode
+      selectedOptions {
+        name
+        value
+      }
     }
   }
   metafields(first: 100) {
@@ -130,38 +139,65 @@ const COLLECTIONS_QUERY = `#graphql
   }
 `;
 
-function productToRow(
+function formatVariantOptions(
+  selectedOptions: Array<{ name: string; value: string }>,
+): string {
+  return selectedOptions
+    .map((option) => `${option.name}: ${option.value}`)
+    .join(" / ");
+}
+
+function productToRows(
   product: ExportProduct,
   metafieldHeaderSet: Set<string>,
   allowedMetafieldHeaders: Set<string>,
-): CatalogRow {
-  const variant = product.variants.nodes[0];
-  const row: CatalogRow & Record<string, string> = {
-    handle: product.handle,
-    title: product.title,
-    description_html: product.descriptionHtml ?? "",
-    vendor: product.vendor ?? "",
-    product_type: product.productType ?? "",
-    status: product.status,
-    tags: product.tags.join(", "),
-    sku: variant?.sku ?? "",
-    stock:
-      variant?.inventoryQuantity != null
-        ? String(variant.inventoryQuantity)
-        : "",
-    price: variant?.price ?? "",
-    compare_at_price: variant?.compareAtPrice ?? "",
-    barcode: variant?.barcode ?? "",
-  };
+): CatalogRow[] {
+  const variants =
+    product.variants.nodes.length > 0
+      ? product.variants.nodes
+      : [
+          {
+            id: "",
+            sku: null,
+            inventoryQuantity: null,
+            price: "",
+            compareAtPrice: null,
+            barcode: null,
+            selectedOptions: [],
+          } satisfies ExportVariant,
+        ];
 
+  const metafieldValues: Record<string, string> = {};
   for (const mf of product.metafields.nodes) {
     const header = metafieldHeader(mf.namespace, mf.key);
     if (!allowedMetafieldHeaders.has(header)) continue;
     metafieldHeaderSet.add(header);
-    row[header] = mf.value;
+    metafieldValues[header] = mf.value;
   }
 
-  return row as CatalogRow;
+  return variants.map((variant) => {
+    const row: CatalogRow & Record<string, string> = {
+      handle: product.handle,
+      title: product.title,
+      description_html: product.descriptionHtml ?? "",
+      vendor: product.vendor ?? "",
+      product_type: product.productType ?? "",
+      status: product.status,
+      tags: product.tags.join(", "),
+      variant_id: variant.id ?? "",
+      variant_options: formatVariantOptions(variant.selectedOptions ?? []),
+      sku: variant.sku ?? "",
+      stock:
+        variant.inventoryQuantity != null
+          ? String(variant.inventoryQuantity)
+          : "",
+      price: variant.price ?? "",
+      compare_at_price: variant.compareAtPrice ?? "",
+      barcode: variant.barcode ?? "",
+      ...metafieldValues,
+    };
+    return row as CatalogRow;
+  });
 }
 
 async function fetchProductPage(
@@ -224,8 +260,8 @@ export async function getExportSummary(
     metafieldHeadersFromDefinitions(definitions),
   );
   const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
-  const preview = previewPage.nodes.map((product) =>
-    productToRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
+  const preview = previewPage.nodes.flatMap((product) =>
+    productToRows(product, metafieldHeaderSet, allowedMetafieldHeaders),
   );
 
   return {
@@ -253,11 +289,11 @@ export async function exportCatalogBatch(
 
   const metafieldHeaderSet = new Set<string>(metafieldHeadersSeed);
   const allowedMetafieldHeaders = new Set(metafieldHeadersSeed);
-  const rows = page.nodes.map((product) =>
-    productToRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
+  const rows = page.nodes.flatMap((product) =>
+    productToRows(product, metafieldHeaderSet, allowedMetafieldHeaders),
   );
 
-  const exportedCount = exportedSoFar + rows.length;
+  const exportedCount = exportedSoFar + page.nodes.length;
   const totalCount = includeTotal
     ? await getProductCount(graphql, query)
     : 0;
@@ -285,13 +321,15 @@ export async function exportCatalog(
   const query = buildProductSearchQuery(filters);
   let after: string | null = null;
   let hasNextPage = true;
+  let productCount = 0;
 
   while (hasNextPage) {
     const page = await fetchProductPage(graphql, EXPORT_PAGE_SIZE, after, query);
 
     for (const product of page.nodes) {
+      productCount += 1;
       rows.push(
-        productToRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
+        ...productToRows(product, metafieldHeaderSet, allowedMetafieldHeaders),
       );
     }
 
@@ -302,6 +340,6 @@ export async function exportCatalog(
   return {
     rows,
     metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
-    productCount: rows.length,
+    productCount,
   };
 }

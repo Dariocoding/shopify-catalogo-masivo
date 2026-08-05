@@ -1,8 +1,8 @@
 /**
  * Formato propio de catálogo (Excel).
- * Una fila = un producto. Los campos sku, stock, price, compare_at_price y barcode
- * aplican solo a la primera variante; las opciones del producto (talla, color, etc.)
- * no se modifican en la importación.
+ * Una fila = una variante. sku/stock/price/compare_at_price/barcode aplican a esa
+ * variante (matched por variant_id, o sku, o la primera si no hay id).
+ * variant_options es informativo; las opciones (talla/color) no se modifican.
  */
 
 /** Tamaño de página al paginar productos en Shopify Admin GraphQL (máx. 250). */
@@ -17,6 +17,8 @@ export const CATALOG_COLUMNS = [
   { key: "product_type", label: "product_type", required: false },
   { key: "status", label: "status", required: false },
   { key: "tags", label: "tags", required: false },
+  { key: "variant_id", label: "variant_id", required: false },
+  { key: "variant_options", label: "variant_options", required: false },
   { key: "sku", label: "sku", required: false },
   { key: "stock", label: "stock", required: false },
   { key: "price", label: "price", required: false },
@@ -28,6 +30,8 @@ export const CATALOG_COLUMNS = [
 export const EXPORT_CATALOG_COLUMNS = [
   { key: "handle", label: "handle", maxWidth: 26 },
   { key: "title", label: "title", maxWidth: 52 },
+  { key: "variant_id", label: "variant_id", maxWidth: 28 },
+  { key: "variant_options", label: "variant_options", maxWidth: 28 },
   { key: "sku", label: "sku", maxWidth: 18 },
   { key: "product_type", label: "product_type", maxWidth: 16 },
   { key: "tags", label: "tags", maxWidth: 22 },

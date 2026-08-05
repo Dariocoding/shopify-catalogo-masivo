@@ -220,9 +220,12 @@ export default function ExportPage() {
       await refreshHistory();
 
       const count = response.headers.get("X-Export-Count");
+      const variantCount = response.headers.get("X-Export-Variant-Count");
       shopify.toast.show(
         count
-          ? `Excel descargado (${count} productos). Revisa Descargas.`
+          ? variantCount && variantCount !== count
+            ? `Excel descargado (${count} productos, ${variantCount} variantes). Revisa Descargas.`
+            : `Excel descargado (${count} productos). Revisa Descargas.`
           : `Excel descargado. Revisa tu carpeta de Descargas.`,
       );
     } catch (error) {
@@ -283,6 +286,11 @@ export default function ExportPage() {
               </CatalogBodyText>
             )}
 
+            <CatalogBodyText>
+              Una fila por variante (incluye <code>variant_id</code> y{" "}
+              <code>variant_options</code>). Edita precio/sku/stock por variante
+              e importa de nuevo.
+            </CatalogBodyText>
             {exporting && (
               <CatalogProgress
                 label={`Generando Excel con ${productCount.toLocaleString("es")} productos…`}

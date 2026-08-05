@@ -252,10 +252,11 @@ export default function ImportPage() {
         <s-section heading="Importar catálogo">
           <CatalogStack>
             <CatalogBodyText>
-              Puedes actualizar sku, precio, stock, código de barras y precio
-              comparado de la <strong>primera variante</strong> de cada producto.
-              Las opciones de variante (talla, color, etc.) no se modifican al
-              importar, para no desconfigurar productos con varias variantes.
+              Cada fila es una <strong>variante</strong>. Puedes editar sku,
+              precio, stock, código de barras y precio comparado de esa
+              variante (usa <code>variant_id</code> del export).{" "}
+              <code>variant_options</code> es solo informativo: no cambia
+              tallas/colores.
             </CatalogBodyText>
 
             {metafieldColumns.length > 0 && (

@@ -39,7 +39,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     await recordExportHistory(session.shop, {
       filename,
-      productCount: result.rows.length,
+      productCount: result.productCount,
       filters,
       collectionTitles,
     });
@@ -51,7 +51,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
-        "X-Export-Count": String(result.rows.length),
+        "X-Export-Count": String(result.productCount),
+        "X-Export-Variant-Count": String(result.rows.length),
       },
     });
   } catch (error) {
