@@ -521,5 +521,8 @@ export default function BulkEditPage() {
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
-  return boundary.headers(headersArgs);
+  return {
+    ...boundary.headers(headersArgs),
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+  };
 };

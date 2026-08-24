@@ -256,8 +256,16 @@ export default function ExportPage() {
           stat={`${productCount.toLocaleString("es")} productos`}
         />
 
+        <s-box padding="base" background="subdued" borderRadius="base">
+          <CatalogBodyText>
+            ¿Quieres editar productos sin variantes ni IDs técnicos? Usa{" "}
+            <Link to="/app/bulk-edit">Edición masiva</Link> — una fila por
+            producto, más fácil para el día a día.
+          </CatalogBodyText>
+        </s-box>
+
         <CatalogSteps>
-          <CatalogStep step={1} title="Filtrar y descargar">
+          <CatalogStep step={1} title="Filtrar y descargar (modo avanzado)">
             <CatalogFiltersPanel
               filters={filters}
               collections={collections}
@@ -279,17 +287,17 @@ export default function ExportPage() {
 
             {metafieldColumns.length > 0 && (
               <CatalogBodyText>
-                El Excel incluye el metafield{" "}
+                Este Excel también incluye el metafield{" "}
                 <strong>{metafieldColumns[0]?.name}</strong> (columna{" "}
-                <code>{metafieldColumns[0]?.header}</code>). Edítalo e impórtalo
-                de nuevo.
+                <code>{metafieldColumns[0]?.header}</code>).
               </CatalogBodyText>
             )}
 
             <CatalogBodyText>
-              Una fila por variante (incluye <code>variant_id</code> y{" "}
-              <code>variant_options</code>). Edita precio/sku/stock por variante
-              e importa de nuevo.
+              Modo avanzado: una fila por <strong>variante</strong> (talla,
+              color, etc.). Incluye <code>variant_id</code> y{" "}
+              <code>variant_options</code> para identificar cada variante.
+              Usa esta opción solo si necesitas editar variantes por separado.
             </CatalogBodyText>
             {exporting && (
               <CatalogProgress

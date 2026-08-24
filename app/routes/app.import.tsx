@@ -249,21 +249,30 @@ export default function ImportPage() {
       </Link>
 
       <CatalogPage>
-        <s-section heading="Importar catálogo">
+        <s-box padding="base" background="subdued" borderRadius="base">
+          <CatalogBodyText>
+            ¿Tienes un Excel de{" "}
+            <Link to="/app/bulk-edit">Edición masiva</Link> (una fila por
+            producto, sin <code>variant_id</code>)? Impórtalo desde ahí, no
+            desde esta página.
+          </CatalogBodyText>
+        </s-box>
+
+        <s-section heading="Importar catálogo (modo avanzado)">
           <CatalogStack>
             <CatalogBodyText>
-              Cada fila es una <strong>variante</strong>. Puedes editar sku,
-              precio, stock, código de barras y precio comparado de esa
-              variante (usa <code>variant_id</code> del export).{" "}
-              <code>variant_options</code> es solo informativo: no cambia
-              tallas/colores.
+              Esta pantalla es para Excel con <strong>variantes</strong> (una
+              fila por talla/color). Usa <code>variant_id</code> del export
+              avanzado para identificar cada variante.{" "}
+              <code>variant_options</code> es solo informativo.
             </CatalogBodyText>
 
             {metafieldColumns.length > 0 && (
               <CatalogBodyText>
-                Puedes editar en masa el metafield{" "}
+                Si el archivo incluye el metafield{" "}
                 <strong>{metafieldColumns[0]?.name}</strong> (columna{" "}
-                <code>{metafieldColumns[0]?.header}</code>).
+                <code>{metafieldColumns[0]?.header}</code>), también se
+                actualizará al importar.
               </CatalogBodyText>
             )}
 
