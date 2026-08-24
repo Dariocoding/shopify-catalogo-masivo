@@ -606,8 +606,24 @@
 
 .variant-editor__variant-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.variant-editor__variant-grid > .catalog-field {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .variant-editor__variant-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .variant-editor__variant-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .variant-editor__dirty-badge {
