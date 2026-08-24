@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 
 import { CatalogField, CatalogInput } from "./catalog-ui";
-import type { VariantEditorCreateInput } from "../lib/catalog-variant-editor.server";
+import type { VariantEditorCreateInput } from "../lib/catalog-variant-editor.shared";
 import {
   buildVariantCombinations,
   canAddSecondOption,
   getEditableOptions,
   isSimpleProduct,
   type VariantEditorProduct,
-} from "../lib/catalog-variant-editor.server";
+} from "../lib/catalog-variant-editor.shared";
 
 type VariantAddPanelProps = {
   product: VariantEditorProduct;

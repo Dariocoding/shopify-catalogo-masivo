@@ -3,14 +3,16 @@ import { useState } from "react";
 import { VariantAddPanel } from "./variant-add-panel";
 import { VariantOptionsEditor } from "./variant-options-editor";
 import { CatalogInput } from "./catalog-ui";
-import type { VariantEditorCreateInput } from "../lib/catalog-variant-editor.server";
-import type { VariantEditorRenameOptionChange } from "../lib/catalog-variant-editor.server";
+import type {
+  VariantEditorCreateInput,
+  VariantEditorRenameOptionChange,
+  VariantEditorProduct,
+  VariantEditorVariant,
+} from "../lib/catalog-variant-editor.shared";
 import {
   getEditableOptions,
   isSimpleProduct,
-  type VariantEditorProduct,
-  type VariantEditorVariant,
-} from "../lib/catalog-variant-editor.server";
+} from "../lib/catalog-variant-editor.shared";
 
 export type VariantEditorDraft = {
   sku: string;

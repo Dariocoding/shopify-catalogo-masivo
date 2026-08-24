@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { CatalogField, CatalogInput } from "./catalog-ui";
-import type { VariantEditorRenameOptionChange } from "../lib/catalog-variant-editor.server";
+import type { VariantEditorRenameOptionChange } from "../lib/catalog-variant-editor.shared";
 import {
   getEditableOptions,
   type VariantEditorOption,
   type VariantEditorProduct,
-} from "../lib/catalog-variant-editor.server";
+} from "../lib/catalog-variant-editor.shared";
 
 type VariantOptionsEditorProps = {
   product: VariantEditorProduct;
