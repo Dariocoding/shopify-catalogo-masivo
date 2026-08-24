@@ -47,6 +47,7 @@ export default function App() {
       <s-app-nav>
         <NavLink to="/app">Inicio</NavLink>
         <NavLink to="/app/bulk-edit">Edición masiva</NavLink>
+        <NavLink to="/app/variants">Variantes</NavLink>
         <NavLink to="/app/export">Exportar</NavLink>
         <NavLink to="/app/import">Importar</NavLink>
       </s-app-nav>

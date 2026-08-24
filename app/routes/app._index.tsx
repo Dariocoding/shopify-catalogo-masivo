@@ -33,18 +33,29 @@ export default function Dashboard() {
             </CatalogStepActions>
           </CatalogStep>
 
-          <CatalogStep step={2} title="Exportar (con variantes)">
+          <CatalogStep step={2} title="Variantes (tallas, colores)">
+            <CatalogBodyText>
+              Tablas editables dentro de la app. Cambia precio, stock y SKU de
+              cada variante sin Excel.
+            </CatalogBodyText>
             <CatalogStepActions>
-              <Link to="/app/export" style={{ textDecoration: "none" }}>
-                <s-button variant="primary">Exportar catálogo</s-button>
+              <Link to="/app/variants" style={{ textDecoration: "none" }}>
+                <s-button variant="primary">Editor de variantes</s-button>
               </Link>
             </CatalogStepActions>
           </CatalogStep>
 
-          <CatalogStep step={3} title="Importar (con variantes)">
+          <CatalogStep step={3} title="Exportar / Importar (avanzado)">
+            <CatalogBodyText>
+              Solo si necesitas respaldo en Excel. Para editar variantes usa el
+              editor de arriba.
+            </CatalogBodyText>
             <CatalogStepActions>
+              <Link to="/app/export" style={{ textDecoration: "none" }}>
+                <s-button>Exportar</s-button>
+              </Link>
               <Link to="/app/import" style={{ textDecoration: "none" }}>
-                <s-button variant="primary">Importar catálogo</s-button>
+                <s-button>Importar</s-button>
               </Link>
             </CatalogStepActions>
           </CatalogStep>

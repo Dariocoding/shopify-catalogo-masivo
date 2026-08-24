@@ -251,10 +251,10 @@ export default function ImportPage() {
       <CatalogPage>
         <s-box padding="base" background="subdued" borderRadius="base">
           <CatalogBodyText>
-            ¿Tienes un Excel de{" "}
-            <Link to="/app/bulk-edit">Edición masiva</Link> (una fila por
-            producto, sin <code>variant_id</code>)? Impórtalo desde ahí, no
-            desde esta página.
+            Para editar variantes, usa el{" "}
+            <Link to="/app/variants">Editor de variantes</Link>. Para productos
+            simples (sin tallas/colores), usa{" "}
+            <Link to="/app/bulk-edit">Edición masiva</Link>.
           </CatalogBodyText>
         </s-box>
 

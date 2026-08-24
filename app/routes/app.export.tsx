@@ -258,9 +258,9 @@ export default function ExportPage() {
 
         <s-box padding="base" background="subdued" borderRadius="base">
           <CatalogBodyText>
-            ¿Quieres editar productos sin variantes ni IDs técnicos? Usa{" "}
-            <Link to="/app/bulk-edit">Edición masiva</Link> — una fila por
-            producto, más fácil para el día a día.
+            Para editar variantes (tallas, colores), usa el{" "}
+            <Link to="/app/variants">Editor de variantes</Link> con tablas
+            dentro de la app. Este export es solo respaldo avanzado en Excel.
           </CatalogBodyText>
         </s-box>
 
