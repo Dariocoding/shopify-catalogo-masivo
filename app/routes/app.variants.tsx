@@ -930,7 +930,7 @@ export default function VariantsPage() {
         <s-button slot="primary-action">Volver al inicio</s-button>
       </Link>
 
-      <CatalogPage>
+      <CatalogPage className={dirtyVariantIds.size > 0 ? "catalog-page--has-sticky-bar" : undefined}>
         <CatalogHero
           title="Editor de variantes"
           description="Edita, crea y elimina variantes con fotos y tablas. Agrega tallas o colores sin usar Excel."
@@ -1082,6 +1082,26 @@ export default function VariantsPage() {
           </s-section>
         )}
       </CatalogPage>
+
+      {dirtyVariantIds.size > 0 && (
+        <div
+          className="variant-editor__sticky-bar"
+          role="region"
+          aria-label="Cambios sin guardar"
+        >
+          <span className="variant-editor__sticky-bar-text">
+            {dirtyVariantIds.size} cambio
+            {dirtyVariantIds.size === 1 ? "" : "s"} sin guardar
+          </span>
+          <s-button
+            variant="primary"
+            onClick={saveChanges}
+            {...(isSaving ? { loading: true } : {})}
+          >
+            Guardar cambios
+          </s-button>
+        </div>
+      )}
     </s-page>
   );
 }

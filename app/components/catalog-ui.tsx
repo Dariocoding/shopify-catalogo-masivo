@@ -1,7 +1,17 @@
 import type { ReactNode } from "react";
 
-export function CatalogPage({ children }: { children: ReactNode }) {
-  return <div className="catalog-page">{children}</div>;
+export function CatalogPage({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className ? `catalog-page ${className}` : "catalog-page"}>
+      {children}
+    </div>
+  );
 }
 
 export function CatalogHero({

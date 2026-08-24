@@ -196,9 +196,8 @@ export function VariantAddPanel({
   })();
 
   return (
-    <tr className="variant-editor__add-row">
-      <td colSpan={8}>
-        <div className="variant-editor__add-panel">
+    <div className="variant-editor__add-panel-wrap">
+      <div className="variant-editor__add-panel">
           <div className="variant-editor__add-head">
             <div>
               <p className="variant-editor__add-title">Agregar variante</p>
@@ -467,7 +466,6 @@ export function VariantAddPanel({
             </button>
           </div>
         </div>
-      </td>
-    </tr>
+    </div>
   );
 }

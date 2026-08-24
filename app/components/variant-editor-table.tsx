@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { VariantAddPanel } from "./variant-add-panel";
 import { VariantOptionsEditor } from "./variant-options-editor";
-import { CatalogInput } from "./catalog-ui";
+import { CatalogField, CatalogInput } from "./catalog-ui";
 import type {
   VariantEditorCreateInput,
   VariantEditorRenameOptionChange,
@@ -107,7 +107,7 @@ function ProductThumbnail({
   );
 }
 
-function VariantFields({
+function VariantCard({
   product,
   variant,
   draft,
@@ -133,60 +133,21 @@ function VariantFields({
   const variantImageUrl = variant.imageUrl ?? product.imageUrl;
 
   return (
-    <tr
-      className={`variant-editor__row${dirty ? " variant-editor__row--dirty" : ""}`}
+    <article
+      className={`variant-editor__variant-card${dirty ? " variant-editor__variant-card--dirty" : ""}`}
     >
-      <td className="variant-editor__cell variant-editor__cell--photo">
+      <div className="variant-editor__variant-card-head">
         <ProductThumbnail
           imageUrl={variantImageUrl}
           alt={variant.imageAlt || variant.label}
           size="sm"
         />
-      </td>
-      <td className="variant-editor__cell variant-editor__cell--label">
-        <span className="variant-editor__variant-label">{variant.label}</span>
-      </td>
-      <td className="variant-editor__cell">
-        <CatalogInput
-          value={draft.sku}
-          disabled={disabled}
-          onChange={(e) => onDraftChange(variant.id, "sku", e.target.value)}
-        />
-      </td>
-      <td className="variant-editor__cell variant-editor__cell--narrow">
-        <CatalogInput
-          value={draft.price}
-          disabled={disabled}
-          inputMode="decimal"
-          onChange={(e) => onDraftChange(variant.id, "price", e.target.value)}
-        />
-      </td>
-      <td className="variant-editor__cell variant-editor__cell--narrow">
-        <CatalogInput
-          value={draft.compareAtPrice}
-          disabled={disabled}
-          inputMode="decimal"
-          onChange={(e) =>
-            onDraftChange(variant.id, "compareAtPrice", e.target.value)
-          }
-        />
-      </td>
-      <td className="variant-editor__cell variant-editor__cell--narrow">
-        <CatalogInput
-          value={draft.stock}
-          disabled={disabled}
-          inputMode="numeric"
-          onChange={(e) => onDraftChange(variant.id, "stock", e.target.value)}
-        />
-      </td>
-      <td className="variant-editor__cell">
-        <CatalogInput
-          value={draft.barcode}
-          disabled={disabled}
-          onChange={(e) => onDraftChange(variant.id, "barcode", e.target.value)}
-        />
-      </td>
-      <td className="variant-editor__cell variant-editor__cell--actions">
+        <div className="variant-editor__variant-card-title">
+          <p className="variant-editor__variant-label">{variant.label}</p>
+          {dirty ? (
+            <span className="variant-editor__dirty-badge">Sin guardar</span>
+          ) : null}
+        </div>
         <button
           type="button"
           className="variant-editor__delete-btn"
@@ -200,8 +161,51 @@ function VariantFields({
         >
           Eliminar
         </button>
-      </td>
-    </tr>
+      </div>
+
+      <div className="variant-editor__variant-grid">
+        <CatalogField label="SKU">
+          <CatalogInput
+            value={draft.sku}
+            disabled={disabled}
+            onChange={(e) => onDraftChange(variant.id, "sku", e.target.value)}
+          />
+        </CatalogField>
+        <CatalogField label="Precio">
+          <CatalogInput
+            value={draft.price}
+            disabled={disabled}
+            inputMode="decimal"
+            onChange={(e) => onDraftChange(variant.id, "price", e.target.value)}
+          />
+        </CatalogField>
+        <CatalogField label="Precio comparado">
+          <CatalogInput
+            value={draft.compareAtPrice}
+            disabled={disabled}
+            inputMode="decimal"
+            onChange={(e) =>
+              onDraftChange(variant.id, "compareAtPrice", e.target.value)
+            }
+          />
+        </CatalogField>
+        <CatalogField label="Stock">
+          <CatalogInput
+            value={draft.stock}
+            disabled={disabled}
+            inputMode="numeric"
+            onChange={(e) => onDraftChange(variant.id, "stock", e.target.value)}
+          />
+        </CatalogField>
+        <CatalogField label="Código barras">
+          <CatalogInput
+            value={draft.barcode}
+            disabled={disabled}
+            onChange={(e) => onDraftChange(variant.id, "barcode", e.target.value)}
+          />
+        </CatalogField>
+      </div>
+    </article>
   );
 }
 
@@ -251,60 +255,41 @@ export function VariantEditorTable({
             Contraer todos
           </button>
         </div>
-        <span className="variant-editor__scroll-hint">
-          Desliza horizontalmente para ver todas las columnas →
-        </span>
       </div>
 
-      <div className="variant-editor__scroll">
-        <table className="variant-editor__table">
-          <thead>
-            <tr>
-              <th className="variant-editor__cell--photo">Foto</th>
-              <th>Producto / variante</th>
-              <th>SKU</th>
-              <th>Precio</th>
-              <th>Precio comparado</th>
-              <th>Stock</th>
-              <th>Código barras</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => {
-              const isOpen = expanded[product.id] ?? product.variants.length <= 1;
-              const variantCount = product.variants.length;
-              const canDeleteVariants = variantCount > 1;
+      <div className="variant-editor__products">
+        {products.map((product) => {
+          const isOpen = expanded[product.id] ?? product.variants.length <= 1;
+          const variantCount = product.variants.length;
+          const canDeleteVariants = variantCount > 1;
 
-              return (
-                <ProductGroup
-                  key={product.id}
-                  product={product}
-                  isOpen={isOpen}
-                  variantCount={variantCount}
-                  canDeleteVariants={canDeleteVariants}
-                  drafts={drafts}
-                  dirtyVariantIds={dirtyVariantIds}
-                  disabled={
-                    disabled ||
-                    Boolean(
-                      (addingProductId && addingProductId !== product.id) ||
-                        (renamingProductId && renamingProductId !== product.id),
-                    )
-                  }
-                  onToggleProduct={onToggleProduct}
-                  onDraftChange={onDraftChange}
-                  onDeleteVariant={onDeleteVariant}
-                  onCreateVariants={onCreateVariants}
-                  onAddOption={onAddOption}
-                  onRenameOptions={onRenameOptions}
-                  isAdding={addingProductId === product.id}
-                  isRenaming={renamingProductId === product.id}
-                />
-              );
-            })}
-          </tbody>
-        </table>
+          return (
+            <ProductGroup
+              key={product.id}
+              product={product}
+              isOpen={isOpen}
+              variantCount={variantCount}
+              canDeleteVariants={canDeleteVariants}
+              drafts={drafts}
+              dirtyVariantIds={dirtyVariantIds}
+              disabled={
+                disabled ||
+                Boolean(
+                  (addingProductId && addingProductId !== product.id) ||
+                    (renamingProductId && renamingProductId !== product.id),
+                )
+              }
+              onToggleProduct={onToggleProduct}
+              onDraftChange={onDraftChange}
+              onDeleteVariant={onDeleteVariant}
+              onCreateVariants={onCreateVariants}
+              onAddOption={onAddOption}
+              onRenameOptions={onRenameOptions}
+              isAdding={addingProductId === product.id}
+              isRenaming={renamingProductId === product.id}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -367,114 +352,112 @@ function ProductGroup({
       ? product.tags.slice(0, 3).join(", ") +
         (product.tags.length > 3 ? ` +${product.tags.length - 3}` : "")
       : null;
+  const showBody = isOpen || variantCount <= 1 || addPanelOpen;
 
   return (
-    <>
-      <tr
-        className={`variant-editor__product-row${hasDirtyVariant ? " variant-editor__product-row--dirty" : ""}`}
-      >
-        <td className="variant-editor__cell variant-editor__cell--photo">
-          <ProductThumbnail
-            imageUrl={product.imageUrl}
-            alt={product.imageAlt || product.title}
-          />
-        </td>
-        <td colSpan={7}>
-          <button
-            type="button"
-            className="variant-editor__product-toggle"
-            onClick={() => onToggleProduct(product.id)}
-            disabled={disabled || variantCount <= 1}
-          >
-            <span className="variant-editor__chevron">
-              {variantCount <= 1 ? "•" : isOpen ? "▾" : "▸"}
-            </span>
-            <span className="variant-editor__product-copy">
-              <span className="variant-editor__product-title">{product.title}</span>
-              <span className="variant-editor__product-meta">
-                <span
-                  className={`variant-editor__status ${statusClassName(product.status)}`}
-                >
-                  {formatStatus(product.status)}
-                </span>
-                {product.vendor ? (
-                  <>
-                    <span className="variant-editor__meta-sep">·</span>
-                    <span>{product.vendor}</span>
-                  </>
-                ) : null}
-                {product.productType ? (
-                  <>
-                    <span className="variant-editor__meta-sep">·</span>
-                    <span>{product.productType}</span>
-                  </>
-                ) : null}
-                <span className="variant-editor__meta-sep">·</span>
-                <span>{product.handle}</span>
-                {variantCount > 1 ? (
-                  <>
-                    <span className="variant-editor__meta-sep">·</span>
-                    <span>{variantCount} variantes</span>
-                  </>
-                ) : variantCount === 1 ? (
-                  <>
-                    <span className="variant-editor__meta-sep">·</span>
-                    <span>{simple ? "Sin opciones" : "1 variante"}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="variant-editor__meta-sep">·</span>
-                    <span className="variant-editor__badge-empty">Sin variantes</span>
-                  </>
-                )}
-                {tagPreview ? (
-                  <>
-                    <span className="variant-editor__meta-sep">·</span>
-                    <span className="variant-editor__tags">{tagPreview}</span>
-                  </>
-                ) : null}
-              </span>
-            </span>
-          </button>
-        </td>
-      </tr>
-
-      {(isOpen || variantCount <= 1) && editableOptions.length > 0 && (
-        <VariantOptionsEditor
-          product={product}
-          disabled={disabled || isRenaming}
-          onRename={(changes) => onRenameOptions(product.id, changes)}
+    <section
+      className={`variant-editor__product${hasDirtyVariant ? " variant-editor__product--dirty" : ""}`}
+    >
+      <div className="variant-editor__product-head">
+        <ProductThumbnail
+          imageUrl={product.imageUrl}
+          alt={product.imageAlt || product.title}
         />
-      )}
+        <button
+          type="button"
+          className="variant-editor__product-toggle"
+          onClick={() => onToggleProduct(product.id)}
+          disabled={disabled || variantCount <= 1}
+        >
+          <span className="variant-editor__chevron">
+            {variantCount <= 1 ? "•" : isOpen ? "▾" : "▸"}
+          </span>
+          <span className="variant-editor__product-copy">
+            <span className="variant-editor__product-title">{product.title}</span>
+            <span className="variant-editor__product-meta">
+              <span
+                className={`variant-editor__status ${statusClassName(product.status)}`}
+              >
+                {formatStatus(product.status)}
+              </span>
+              {product.vendor ? (
+                <>
+                  <span className="variant-editor__meta-sep">·</span>
+                  <span>{product.vendor}</span>
+                </>
+              ) : null}
+              {product.productType ? (
+                <>
+                  <span className="variant-editor__meta-sep">·</span>
+                  <span>{product.productType}</span>
+                </>
+              ) : null}
+              <span className="variant-editor__meta-sep">·</span>
+              <span>{product.handle}</span>
+              {variantCount > 1 ? (
+                <>
+                  <span className="variant-editor__meta-sep">·</span>
+                  <span>{variantCount} variantes</span>
+                </>
+              ) : variantCount === 1 ? (
+                <>
+                  <span className="variant-editor__meta-sep">·</span>
+                  <span>{simple ? "Sin opciones" : "1 variante"}</span>
+                </>
+              ) : (
+                <>
+                  <span className="variant-editor__meta-sep">·</span>
+                  <span className="variant-editor__badge-empty">Sin variantes</span>
+                </>
+              )}
+              {tagPreview ? (
+                <>
+                  <span className="variant-editor__meta-sep">·</span>
+                  <span className="variant-editor__tags">{tagPreview}</span>
+                </>
+              ) : null}
+            </span>
+          </span>
+        </button>
+      </div>
 
-      {(isOpen || variantCount <= 1) &&
-        product.variants.map((variant) => {
-          const draft = drafts[variant.id] ?? {
-            sku: variant.sku,
-            price: variant.price,
-            compareAtPrice: variant.compareAtPrice,
-            stock: variant.stock,
-            barcode: variant.barcode,
-          };
-
-          return (
-            <VariantFields
-              key={variant.id}
+      {showBody && (
+        <div className="variant-editor__product-body">
+          {editableOptions.length > 0 && (
+            <VariantOptionsEditor
               product={product}
-              variant={variant}
-              draft={draft}
-              dirty={dirtyVariantIds.has(variant.id)}
-              disabled={disabled}
-              canDelete={canDeleteVariants}
-              onDraftChange={onDraftChange}
-              onDeleteVariant={onDeleteVariant}
+              disabled={disabled || isRenaming}
+              onRename={(changes) => onRenameOptions(product.id, changes)}
             />
-          );
-        })}
+          )}
 
-      {(isOpen || variantCount <= 1 || addPanelOpen) && !addPanelOpen && (
-        <tr className="variant-editor__add-trigger-row">
-          <td colSpan={8}>
+          <div className="variant-editor__variant-list">
+            {product.variants.map((variant) => {
+              const draft = drafts[variant.id] ?? {
+                sku: variant.sku,
+                price: variant.price,
+                compareAtPrice: variant.compareAtPrice,
+                stock: variant.stock,
+                barcode: variant.barcode,
+              };
+
+              return (
+                <VariantCard
+                  key={variant.id}
+                  product={product}
+                  variant={variant}
+                  draft={draft}
+                  dirty={dirtyVariantIds.has(variant.id)}
+                  disabled={disabled}
+                  canDelete={canDeleteVariants}
+                  onDraftChange={onDraftChange}
+                  onDeleteVariant={onDeleteVariant}
+                />
+              );
+            })}
+          </div>
+
+          {!addPanelOpen && (
             <button
               type="button"
               className={`variant-editor__add-trigger${simple ? " variant-editor__add-trigger--highlight" : ""}`}
@@ -484,26 +467,26 @@ function ProductGroup({
               + Agregar variante
               {simple ? " (tallas, colores…)" : ""}
             </button>
-          </td>
-        </tr>
-      )}
+          )}
 
-      {(isOpen || variantCount <= 1 || addPanelOpen) && addPanelOpen && (
-        <VariantAddPanel
-          product={product}
-          disabled={disabled}
-          onCancel={() => setShowAddPanel(false)}
-          onCreate={(variants) => {
-            setShowAddPanel(false);
-            onCreateVariants(product.id, variants);
-          }}
-          onAddOption={(optionName, values) => {
-            setShowAddPanel(false);
-            onAddOption(product.id, optionName, values);
-          }}
-        />
+          {addPanelOpen && (
+            <VariantAddPanel
+              product={product}
+              disabled={disabled}
+              onCancel={() => setShowAddPanel(false)}
+              onCreate={(variants) => {
+                setShowAddPanel(false);
+                onCreateVariants(product.id, variants);
+              }}
+              onAddOption={(optionName, values) => {
+                setShowAddPanel(false);
+                onAddOption(product.id, optionName, values);
+              }}
+            />
+          )}
+        </div>
       )}
-    </>
+    </section>
   );
 }
 

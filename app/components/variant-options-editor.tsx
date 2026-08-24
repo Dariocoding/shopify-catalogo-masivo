@@ -109,9 +109,7 @@ export function VariantOptionsEditor({
   };
 
   return (
-    <tr className="variant-editor__options-row">
-      <td colSpan={8}>
-        <div className="variant-editor__options-panel">
+    <div className="variant-editor__options-panel">
           <div className="variant-editor__options-head">
             <div>
               <p className="variant-editor__options-title">Opciones del producto</p>
@@ -196,8 +194,6 @@ export function VariantOptionsEditor({
               </div>
             </>
           )}
-        </div>
-      </td>
-    </tr>
+    </div>
   );
 }
