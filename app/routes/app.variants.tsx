@@ -925,15 +925,21 @@ export default function VariantsPage() {
   const totalCount = loaderData.totalCount || loadedCount;
 
   return (
-    <s-page heading="Variantes">
+    <s-page heading="Variantes" inlineSize="large">
       <Link to="/app" style={{ textDecoration: "none" }}>
         <s-button slot="primary-action">Volver al inicio</s-button>
       </Link>
 
-      <CatalogPage className={dirtyVariantIds.size > 0 ? "catalog-page--has-sticky-bar" : undefined}>
+      <CatalogPage
+        className={
+          dirtyVariantIds.size > 0
+            ? "catalog-page--full catalog-page--has-sticky-bar"
+            : "catalog-page--full"
+        }
+      >
         <CatalogHero
           title="Editor de variantes"
-          description="Edita, crea y elimina variantes con fotos y tablas. Agrega tallas o colores sin usar Excel."
+          description="Edita, crea y elimina variantes con fotos y campos apilados. Agrega tallas o colores sin usar Excel."
           stat={`${loadedCount.toLocaleString("es")} de ${totalCount.toLocaleString("es")} productos`}
         />
 
