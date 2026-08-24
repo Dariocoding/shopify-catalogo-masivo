@@ -288,7 +288,9 @@ export async function importCatalogBatch(
   parsed: ParsedCatalog,
   startIndex: number,
   batchSize = IMPORT_BATCH_SIZE,
+  options: { simpleMode?: boolean } = {},
 ): Promise<ImportBatchResult> {
+  const { simpleMode = false } = options;
   const validationErrors = [...parsed.errors];
   const results: ImportRowResult[] = [];
   const end = Math.min(startIndex + batchSize, parsed.rows.length);
@@ -364,12 +366,15 @@ export async function importCatalogBatch(
       }
 
       const matchedVariant = productContext.exists
-        ? resolveVariant(productContext.variants, row)
+        ? simpleMode
+          ? productContext.variants[0]
+          : resolveVariant(productContext.variants, row)
         : undefined;
 
       if (
         productContext.exists &&
         touchesVariant &&
+        !simpleMode &&
         row.variant_id &&
         !matchedVariant
       ) {

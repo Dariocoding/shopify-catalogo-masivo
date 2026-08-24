@@ -39,8 +39,38 @@ export const EXPORT_CATALOG_COLUMNS = [
   { key: "price", label: "price", maxWidth: 12 },
 ] as const;
 
+/** Edición masiva simple: una fila por producto, sin columnas de variantes. */
+export const SIMPLE_CATALOG_COLUMNS = [
+  { key: "handle", label: "handle", required: true },
+  { key: "title", label: "title", required: true },
+  { key: "sku", label: "sku", required: false },
+  { key: "stock", label: "stock", required: false },
+  { key: "price", label: "price", required: false },
+  { key: "compare_at_price", label: "compare_at_price", required: false },
+  { key: "product_type", label: "product_type", required: false },
+  { key: "tags", label: "tags", required: false },
+  { key: "status", label: "status", required: false },
+  { key: "vendor", label: "vendor", required: false },
+] as const;
+
+export const SIMPLE_EXPORT_CATALOG_COLUMNS = [
+  { key: "handle", label: "handle", maxWidth: 26 },
+  { key: "title", label: "title", maxWidth: 52 },
+  { key: "sku", label: "sku", maxWidth: 18 },
+  { key: "product_type", label: "product_type", maxWidth: 16 },
+  { key: "tags", label: "tags", maxWidth: 22 },
+  { key: "stock", label: "stock", maxWidth: 10 },
+  { key: "price", label: "price", maxWidth: 12 },
+] as const;
+
 export type ExportCatalogColumnKey =
   (typeof EXPORT_CATALOG_COLUMNS)[number]["key"];
+
+export type SimpleCatalogColumnKey =
+  (typeof SIMPLE_CATALOG_COLUMNS)[number]["key"];
+
+export type SimpleExportCatalogColumnKey =
+  (typeof SIMPLE_EXPORT_CATALOG_COLUMNS)[number]["key"];
 
 export type CatalogColumnKey = (typeof CATALOG_COLUMNS)[number]["key"];
 
@@ -53,6 +83,9 @@ export type RowValidationError = {
 };
 
 const COLUMN_KEYS = new Set<string>(CATALOG_COLUMNS.map((c) => c.key));
+const SIMPLE_COLUMN_KEYS = new Set<string>(
+  SIMPLE_CATALOG_COLUMNS.map((c) => c.key),
+);
 const METAFIELD_PREFIX = "metafield.";
 
 export type ParsedCatalog = {
@@ -224,6 +257,113 @@ export function parseCatalogCsv(
   return { headers, rows, metafieldColumns, errors };
 }
 
+function simpleRowToCatalogRow(
+  values: Record<string, string>,
+): CatalogRow {
+  const row = emptyRow();
+  for (const col of SIMPLE_CATALOG_COLUMNS) {
+    row[col.key] = values[col.key] ?? "";
+  }
+  for (const [header, value] of Object.entries(values)) {
+    if (!SIMPLE_COLUMN_KEYS.has(header) && parseMetafieldHeader(header)) {
+      (row as Record<string, string>)[header] = value;
+    }
+  }
+  return row;
+}
+
+export function parseSimpleCatalogCsv(
+  text: string,
+  allowedMetafieldHeaders: Set<string> = new Set(),
+): ParsedCatalog {
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+
+  const errors: RowValidationError[] = [];
+
+  if (lines.length === 0) {
+    return {
+      headers: [],
+      rows: [],
+      metafieldColumns: [],
+      errors: [{ row: 0, message: "El archivo está vacío" }],
+    };
+  }
+
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+  const unknown = headers.filter((header) => {
+    if (SIMPLE_COLUMN_KEYS.has(header)) return false;
+    if (isSilentlyIgnoredImportHeader(header)) return false;
+    const metafield = parseMetafieldHeader(header);
+    if (!metafield) return true;
+    return (
+      allowedMetafieldHeaders.size > 0 &&
+      !allowedMetafieldHeaders.has(header)
+    );
+  });
+  if (unknown.length > 0) {
+    errors.push({
+      row: 1,
+      message: `Columnas desconocidas: ${unknown.join(", ")}`,
+    });
+  }
+
+  const missingRequired = SIMPLE_CATALOG_COLUMNS.filter(
+    (c) => c.required && !headers.includes(c.key),
+  ).map((c) => c.key);
+  if (missingRequired.length > 0) {
+    errors.push({
+      row: 1,
+      message: `Faltan columnas obligatorias: ${missingRequired.join(", ")}`,
+    });
+  }
+
+  const metafieldColumns = headers
+    .map((header) => {
+      if (isSilentlyIgnoredImportHeader(header)) return null;
+      if (
+        allowedMetafieldHeaders.size > 0 &&
+        !allowedMetafieldHeaders.has(header)
+      ) {
+        return null;
+      }
+      const parsed = parseMetafieldHeader(header);
+      return parsed ? { header, ...parsed } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  const rows: CatalogRow[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCsvLine(lines[i]);
+    const rowNum = i + 1;
+    const rowValues: Record<string, string> = {};
+
+    headers.forEach((header, idx) => {
+      const value = (values[idx] ?? "").trim();
+      if (SIMPLE_COLUMN_KEYS.has(header)) {
+        rowValues[header] = value;
+      } else if (
+        !isSilentlyIgnoredImportHeader(header) &&
+        parseMetafieldHeader(header) &&
+        (allowedMetafieldHeaders.size === 0 ||
+          allowedMetafieldHeaders.has(header))
+      ) {
+        rowValues[header] = value;
+      }
+    });
+
+    const row = simpleRowToCatalogRow(rowValues);
+    rows.push(row);
+    validateCatalogRow(row, rowNum, errors);
+  }
+
+  return { headers, rows, metafieldColumns, errors };
+}
+
 export function validateCatalogRow(
   row: CatalogRow,
   rowNum: number,
@@ -289,6 +429,51 @@ export function sanitizeExportFilename(
   if (lower.endsWith(".xlsx")) return base;
   if (lower.endsWith(".csv")) return base.replace(/\.csv$/i, ".xlsx");
   return `${base}.xlsx`;
+}
+
+export function catalogSimpleExportRowsToSheetData(
+  rows: CatalogRow[],
+  metafieldHeaders: string[] = [],
+): string[][] {
+  const exportColumnKeys = SIMPLE_EXPORT_CATALOG_COLUMNS.map((c) => c.key);
+  const exportColumnKeySet = new Set<string>(exportColumnKeys);
+  const headers = [...exportColumnKeys, ...metafieldHeaders];
+
+  return [
+    headers,
+    ...rows.map((row) =>
+      headers.map((header) => {
+        if (exportColumnKeySet.has(header)) {
+          return row[header as SimpleExportCatalogColumnKey] ?? "";
+        }
+        return (row as Record<string, string>)[header] ?? "";
+      }),
+    ),
+  ];
+}
+
+export function simpleRowsToCsv(
+  rows: CatalogRow[],
+  metafieldHeaders: string[] = [],
+): string {
+  const headers = [
+    ...SIMPLE_CATALOG_COLUMNS.map((c) => c.key),
+    ...metafieldHeaders,
+  ];
+  const lines = [
+    headers.map(escapeCsvField).join(","),
+    ...rows.map((row) =>
+      headers
+        .map((h) => {
+          if (SIMPLE_COLUMN_KEYS.has(h)) {
+            return escapeCsvField(row[h as SimpleCatalogColumnKey] ?? "");
+          }
+          return escapeCsvField((row as Record<string, string>)[h] ?? "");
+        })
+        .join(","),
+    ),
+  ];
+  return lines.join("\n");
 }
 
 export function catalogExportRowsToSheetData(

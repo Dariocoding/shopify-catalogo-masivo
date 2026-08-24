@@ -46,6 +46,7 @@ export default function App() {
     <AppProvider embedded apiKey={apiKey}>
       <s-app-nav>
         <NavLink to="/app">Inicio</NavLink>
+        <NavLink to="/app/bulk-edit">Edición masiva</NavLink>
         <NavLink to="/app/export">Exportar</NavLink>
         <NavLink to="/app/import">Importar</NavLink>
       </s-app-nav>

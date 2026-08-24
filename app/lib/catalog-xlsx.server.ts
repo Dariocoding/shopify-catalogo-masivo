@@ -2,7 +2,9 @@ import * as XLSX from "xlsx";
 
 import {
   catalogExportRowsToSheetData,
+  catalogSimpleExportRowsToSheetData,
   EXPORT_CATALOG_COLUMNS,
+  SIMPLE_EXPORT_CATALOG_COLUMNS,
   type CatalogRow,
 } from "./catalog-schema";
 
@@ -83,5 +85,27 @@ export function buildCatalogXlsxBuffer(
   applySheetFormatting(worksheet, sheetData, widthRules);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Catálogo");
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
+export function buildSimpleCatalogXlsxBuffer(
+  rows: CatalogRow[],
+  metafieldHeaders: string[] = [],
+): Buffer {
+  const sheetData = catalogSimpleExportRowsToSheetData(rows, metafieldHeaders);
+  const widthRules = [
+    ...SIMPLE_EXPORT_CATALOG_COLUMNS.map((col) => ({
+      header: col.key,
+      maxWidth: col.maxWidth,
+    })),
+    ...metafieldHeaders.map((header) => ({
+      header,
+      maxWidth: 40,
+    })),
+  ];
+  const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+  applySheetFormatting(worksheet, sheetData, widthRules);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
   return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }

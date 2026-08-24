@@ -55,10 +55,18 @@ export type ExportResult = {
   productCount: number;
 };
 
+export type SimpleExportResult = ExportResult & {
+  multiVariantProductCount: number;
+};
+
 export type ExportSummary = {
   preview: CatalogRow[];
   productCount: number;
   metafieldHeaders: string[];
+};
+
+export type SimpleExportSummary = ExportSummary & {
+  multiVariantProductCount: number;
 };
 
 export type ExportBatchResult = {
@@ -200,6 +208,53 @@ function productToRows(
   });
 }
 
+function productToSimpleRow(
+  product: ExportProduct,
+  metafieldHeaderSet: Set<string>,
+  allowedMetafieldHeaders: Set<string>,
+): CatalogRow {
+  const variant =
+    product.variants.nodes[0] ?? {
+      id: "",
+      sku: null,
+      inventoryQuantity: null,
+      price: "",
+      compareAtPrice: null,
+      barcode: null,
+      selectedOptions: [],
+    };
+
+  const metafieldValues: Record<string, string> = {};
+  for (const mf of product.metafields.nodes) {
+    const header = metafieldHeader(mf.namespace, mf.key);
+    if (!allowedMetafieldHeaders.has(header)) continue;
+    metafieldHeaderSet.add(header);
+    metafieldValues[header] = mf.value;
+  }
+
+  const row: CatalogRow & Record<string, string> = {
+    handle: product.handle,
+    title: product.title,
+    description_html: product.descriptionHtml ?? "",
+    vendor: product.vendor ?? "",
+    product_type: product.productType ?? "",
+    status: product.status,
+    tags: product.tags.join(", "),
+    variant_id: "",
+    variant_options: "",
+    sku: variant.sku ?? "",
+    stock:
+      variant.inventoryQuantity != null
+        ? String(variant.inventoryQuantity)
+        : "",
+    price: variant.price ?? "",
+    compare_at_price: variant.compareAtPrice ?? "",
+    barcode: variant.barcode ?? "",
+    ...metafieldValues,
+  };
+  return row as CatalogRow;
+}
+
 async function fetchProductPage(
   graphql: AdminGraphql,
   first: number,
@@ -268,6 +323,78 @@ export async function getExportSummary(
     preview,
     productCount: totalCount,
     metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
+  };
+}
+
+export async function getSimpleExportSummary(
+  graphql: AdminGraphql,
+  filters: ExportFilters = EMPTY_EXPORT_FILTERS,
+  previewSize = 5,
+): Promise<SimpleExportSummary> {
+  const query = buildProductSearchQuery(filters);
+  const [totalCount, previewPage, definitions] = await Promise.all([
+    getProductCount(graphql, query),
+    fetchProductPage(graphql, previewSize, null, query),
+    fetchCatalogProductMetafieldDefinitions(graphql),
+  ]);
+
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(definitions),
+  );
+  const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
+  const preview = previewPage.nodes.map((product) =>
+    productToSimpleRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
+  );
+  const multiVariantProductCount = previewPage.nodes.filter(
+    (product) => product.variants.nodes.length > 1,
+  ).length;
+
+  return {
+    preview,
+    productCount: totalCount,
+    metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
+    multiVariantProductCount,
+  };
+}
+
+export async function exportSimpleCatalog(
+  graphql: AdminGraphql,
+  filters: ExportFilters = EMPTY_EXPORT_FILTERS,
+): Promise<SimpleExportResult> {
+  const definitions = await fetchCatalogProductMetafieldDefinitions(graphql);
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(definitions),
+  );
+  const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
+  const rows: CatalogRow[] = [];
+  const query = buildProductSearchQuery(filters);
+  let after: string | null = null;
+  let hasNextPage = true;
+  let productCount = 0;
+  let multiVariantProductCount = 0;
+
+  while (hasNextPage) {
+    const page = await fetchProductPage(graphql, EXPORT_PAGE_SIZE, after, query);
+
+    for (const product of page.nodes) {
+      productCount += 1;
+      if (product.variants.nodes.length > 1) {
+        multiVariantProductCount += 1;
+      }
+      rows.push(
+        productToSimpleRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
+      );
+    }
+
+    hasNextPage = page.hasNextPage;
+    after = page.endCursor;
+  }
+
+  return {
+    rows,
+    metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
+    productCount,
+    multiVariantProductCount,
   };
 }
 
