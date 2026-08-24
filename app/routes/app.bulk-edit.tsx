@@ -351,8 +351,8 @@ export default function BulkEditPage() {
             {multiVariantProductCount === 1 ? "" : "s"} tienen varias variantes
             (tallas, colores, etc.). En este modo se exporta e importa solo la
             primera variante de cada producto. Para editar cada variante por
-            separado, usa{" "}
-            <Link to="/app/export">Exportar / Importar catálogo</Link>.
+            separado, usa el{" "}
+            <Link to="/app/variants">editor de variantes</Link>.
           </CatalogBodyText>
         )}
 
