@@ -44,21 +44,6 @@ export default function Dashboard() {
               </Link>
             </CatalogStepActions>
           </CatalogStep>
-
-          <CatalogStep step={3} title="Exportar / Importar (avanzado)">
-            <CatalogBodyText>
-              Solo si necesitas respaldo en Excel. Para editar variantes usa el
-              editor de arriba.
-            </CatalogBodyText>
-            <CatalogStepActions>
-              <Link to="/app/export" style={{ textDecoration: "none" }}>
-                <s-button>Exportar</s-button>
-              </Link>
-              <Link to="/app/import" style={{ textDecoration: "none" }}>
-                <s-button>Importar</s-button>
-              </Link>
-            </CatalogStepActions>
-          </CatalogStep>
         </CatalogSteps>
       </CatalogPage>
     </s-page>

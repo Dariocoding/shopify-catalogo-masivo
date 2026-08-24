@@ -33,12 +33,27 @@ import {
 } from "../lib/catalog-export-filters";
 import { getCollectionOptions } from "../lib/catalog-export.server";
 import {
+  addVariantEditorOption,
   applyVariantEditorChanges,
+  createVariantEditorVariants,
+  deleteVariantEditorVariants,
   fetchVariantEditorPage,
+  renameVariantEditorOptions,
   VARIANT_EDITOR_PAGE_SIZE,
+  type VariantEditorAddOptionRequest,
+  type VariantEditorAddOptionResult,
   type VariantEditorChange,
+  type VariantEditorCreateInput,
+  type VariantEditorCreateRequest,
+  type VariantEditorCreateResult,
+  type VariantEditorDeleteRequest,
+  type VariantEditorDeleteResult,
   type VariantEditorProduct,
+  type VariantEditorRenameOptionChange,
+  type VariantEditorRenameOptionsRequest,
+  type VariantEditorRenameOptionsResult,
   type VariantEditorSaveResult,
+  type VariantEditorVariant,
 } from "../lib/catalog-variant-editor.server";
 import { authenticate } from "../shopify.server";
 
@@ -55,6 +70,26 @@ type LoaderData = {
 type SaveActionData = {
   intent: "save";
   results: VariantEditorSaveResult[];
+};
+
+type DeleteActionData = {
+  intent: "delete";
+  results: VariantEditorDeleteResult[];
+};
+
+type CreateActionData = {
+  intent: "create";
+  result: VariantEditorCreateResult;
+};
+
+type AddOptionActionData = {
+  intent: "add-option";
+  result: VariantEditorAddOptionResult;
+};
+
+type RenameOptionsActionData = {
+  intent: "rename-options";
+  result: VariantEditorRenameOptionsResult;
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -124,6 +159,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ intent: "save", results } satisfies SaveActionData);
   }
 
+  if (intent === "delete") {
+    const deletionsJson = String(formData.get("deletions") ?? "[]");
+
+    let deletions: VariantEditorDeleteRequest[] = [];
+    try {
+      deletions = JSON.parse(deletionsJson) as VariantEditorDeleteRequest[];
+    } catch {
+      return Response.json({ error: "Datos de eliminación inválidos." }, { status: 400 });
+    }
+
+    if (deletions.length === 0) {
+      return Response.json({ error: "No hay variantes para eliminar." }, { status: 400 });
+    }
+
+    const results = await deleteVariantEditorVariants(admin.graphql, deletions);
+    return Response.json({ intent: "delete", results } satisfies DeleteActionData);
+  }
+
+  if (intent === "create") {
+    const createJson = String(formData.get("create") ?? "{}");
+
+    let createRequest: VariantEditorCreateRequest;
+    try {
+      createRequest = JSON.parse(createJson) as VariantEditorCreateRequest;
+    } catch {
+      return Response.json({ error: "Datos de creación inválidos." }, { status: 400 });
+    }
+
+    const result = await createVariantEditorVariants(admin.graphql, createRequest);
+    return Response.json({ intent: "create", result } satisfies CreateActionData);
+  }
+
+  if (intent === "add-option") {
+    const addOptionJson = String(formData.get("addOption") ?? "{}");
+
+    let addOptionRequest: VariantEditorAddOptionRequest;
+    try {
+      addOptionRequest = JSON.parse(addOptionJson) as VariantEditorAddOptionRequest;
+    } catch {
+      return Response.json({ error: "Datos de opción inválidos." }, { status: 400 });
+    }
+
+    const result = await addVariantEditorOption(admin.graphql, addOptionRequest);
+    return Response.json({ intent: "add-option", result } satisfies AddOptionActionData);
+  }
+
+  if (intent === "rename-options") {
+    const renameJson = String(formData.get("renameOptions") ?? "{}");
+
+    let renameRequest: VariantEditorRenameOptionsRequest;
+    try {
+      renameRequest = JSON.parse(renameJson) as VariantEditorRenameOptionsRequest;
+    } catch {
+      return Response.json({ error: "Datos de renombrado inválidos." }, { status: 400 });
+    }
+
+    const result = await renameVariantEditorOptions(admin.graphql, renameRequest);
+    return Response.json({ intent: "rename-options", result } satisfies RenameOptionsActionData);
+  }
+
   return Response.json({ error: "Acción no reconocida." }, { status: 400 });
 };
 
@@ -186,6 +281,16 @@ export default function VariantsPage() {
   const [hasMore, setHasMore] = useState(loaderData.hasMore);
   const [endCursor, setEndCursor] = useState(loaderData.endCursor);
   const [saveResults, setSaveResults] = useState<VariantEditorSaveResult[]>([]);
+  const [deleteResults, setDeleteResults] = useState<VariantEditorDeleteResult[]>([]);
+  const [createResult, setCreateResult] = useState<VariantEditorCreateResult | null>(
+    null,
+  );
+  const [addOptionResult, setAddOptionResult] =
+    useState<VariantEditorAddOptionResult | null>(null);
+  const [renameOptionsResult, setRenameOptionsResult] =
+    useState<VariantEditorRenameOptionsResult | null>(null);
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
+  const [renamingProductId, setRenamingProductId] = useState<string | null>(null);
 
   const collectionTitles = useMemo(
     () =>
@@ -234,6 +339,12 @@ export default function VariantsPage() {
     setFilters(loaderData.filters);
     setSearch(loaderData.search);
     setSaveResults([]);
+    setDeleteResults([]);
+    setCreateResult(null);
+    setAddOptionResult(null);
+    setRenameOptionsResult(null);
+    setAddingProductId(null);
+    setRenamingProductId(null);
   }, [loaderData]);
 
   useEffect(() => {
@@ -259,13 +370,25 @@ export default function VariantsPage() {
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
-    const data = fetcher.data as SaveActionData | { error?: string };
+    const data = fetcher.data as
+      | SaveActionData
+      | DeleteActionData
+      | CreateActionData
+      | AddOptionActionData
+      | RenameOptionsActionData
+      | { error?: string };
     if ("error" in data && data.error) {
       shopify.toast.show(data.error, { isError: true });
       return;
     }
     if ("intent" in data && data.intent === "save") {
       setSaveResults(data.results);
+      setDeleteResults([]);
+      setCreateResult(null);
+      setAddOptionResult(null);
+      setRenameOptionsResult(null);
+      setAddingProductId(null);
+      setRenamingProductId(null);
       const failed = data.results.filter((result) => !result.success).length;
       const ok = data.results.filter((result) => result.success).length;
       shopify.toast.show(
@@ -288,8 +411,288 @@ export default function VariantsPage() {
           return next;
         });
       }
+      return;
     }
-  }, [fetcher.state, fetcher.data, shopify, drafts]);
+
+    if ("intent" in data && data.intent === "delete") {
+      setDeleteResults(data.results);
+      setSaveResults([]);
+      setCreateResult(null);
+      setAddOptionResult(null);
+      setRenameOptionsResult(null);
+      setAddingProductId(null);
+      setRenamingProductId(null);
+      const failed = data.results.filter((result) => !result.success).length;
+      const ok = data.results.filter((result) => result.success).length;
+      shopify.toast.show(
+        failed > 0
+          ? `Eliminación: ${ok} correctas, ${failed} con error`
+          : ok === 1
+            ? "Variante eliminada"
+            : `${ok} variantes eliminadas`,
+        failed > 0 ? { isError: true } : undefined,
+      );
+
+      if (ok > 0) {
+        const deletedIds = new Set(
+          data.results.filter((result) => result.success).map((result) => result.variantId),
+        );
+
+        setProducts((current) =>
+          current
+            .map((product) => ({
+              ...product,
+              variants: product.variants.filter(
+                (variant) => !deletedIds.has(variant.id),
+              ),
+            }))
+            .filter((product) => product.variants.length > 0),
+        );
+
+        setOriginals((current) => {
+          const next = { ...current };
+          for (const variantId of deletedIds) {
+            delete next[variantId];
+          }
+          return next;
+        });
+
+        setDrafts((current) => {
+          const next = { ...current };
+          for (const variantId of deletedIds) {
+            delete next[variantId];
+          }
+          return next;
+        });
+      }
+      return;
+    }
+
+    if ("intent" in data && data.intent === "create") {
+      setCreateResult(data.result);
+      setSaveResults([]);
+      setDeleteResults([]);
+      setAddOptionResult(null);
+      setRenameOptionsResult(null);
+      setAddingProductId(null);
+      setRenamingProductId(null);
+
+      if (data.result.success) {
+        shopify.toast.show(
+          data.result.variants.length === 1
+            ? "Variante creada"
+            : `${data.result.variants.length} variantes creadas`,
+        );
+
+        setProducts((current) =>
+          current.map((product) => {
+            if (product.id !== data.result.productId) return product;
+
+            if (product.hasOnlyDefaultVariant || product.variants.length === 0) {
+              return {
+                ...product,
+                options: data.result.options,
+                hasOnlyDefaultVariant: data.result.hasOnlyDefaultVariant,
+                variants: data.result.variants,
+              };
+            }
+
+            const existingIds = new Set(product.variants.map((variant) => variant.id));
+            const newVariants = data.result.variants.filter(
+              (variant) => !existingIds.has(variant.id),
+            );
+
+            return {
+              ...product,
+              options: data.result.options,
+              hasOnlyDefaultVariant: data.result.hasOnlyDefaultVariant,
+              variants: [...product.variants, ...newVariants],
+            };
+          }),
+        );
+
+        setOriginals((current) => {
+          const next = { ...current };
+          const product = products.find((item) => item.id === data.result.productId);
+          if (product?.hasOnlyDefaultVariant || product?.variants.length === 0) {
+            for (const variant of product?.variants ?? []) {
+              delete next[variant.id];
+            }
+          }
+          for (const variant of data.result.variants) {
+            next[variant.id] = {
+              ...variantToDraft(variant),
+              handle: data.result.handle,
+              inventoryItemId: variant.inventoryItemId,
+            };
+          }
+          return next;
+        });
+
+        setDrafts((current) => {
+          const next = { ...current };
+          const product = products.find((item) => item.id === data.result.productId);
+          if (product?.hasOnlyDefaultVariant || product?.variants.length === 0) {
+            for (const variant of product?.variants ?? []) {
+              delete next[variant.id];
+            }
+          }
+          for (const variant of data.result.variants) {
+            next[variant.id] = variantToDraft(variant);
+          }
+          return next;
+        });
+
+        setExpanded((current) => ({
+          ...current,
+          [data.result.productId]: true,
+        }));
+      } else {
+        shopify.toast.show(data.result.errors.join("; ") || "Error al crear variantes", {
+          isError: true,
+        });
+      }
+      return;
+    }
+
+    if ("intent" in data && data.intent === "add-option") {
+      setAddOptionResult(data.result);
+      setSaveResults([]);
+      setDeleteResults([]);
+      setCreateResult(null);
+      setRenameOptionsResult(null);
+      setAddingProductId(null);
+      setRenamingProductId(null);
+
+      if (data.result.success) {
+        shopify.toast.show(
+          data.result.variants.length === 1
+            ? "Opción agregada · 1 variante"
+            : `Opción agregada · ${data.result.variants.length} variantes generadas`,
+        );
+
+        setProducts((current) =>
+          current.map((product) => {
+            if (product.id !== data.result.productId) return product;
+
+            return {
+              ...product,
+              options: data.result.options,
+              hasOnlyDefaultVariant: data.result.hasOnlyDefaultVariant,
+              variants: data.result.variants,
+            };
+          }),
+        );
+
+        setOriginals((current) => {
+          const next = { ...current };
+          const product = products.find((item) => item.id === data.result.productId);
+          for (const variant of product?.variants ?? []) {
+            delete next[variant.id];
+          }
+          for (const variant of data.result.variants) {
+            next[variant.id] = {
+              ...variantToDraft(variant),
+              handle: data.result.handle,
+              inventoryItemId: variant.inventoryItemId,
+            };
+          }
+          return next;
+        });
+
+        setDrafts((current) => {
+          const next = { ...current };
+          const product = products.find((item) => item.id === data.result.productId);
+          for (const variant of product?.variants ?? []) {
+            delete next[variant.id];
+          }
+          for (const variant of data.result.variants) {
+            next[variant.id] = variantToDraft(variant);
+          }
+          return next;
+        });
+
+        setExpanded((current) => ({
+          ...current,
+          [data.result.productId]: true,
+        }));
+      } else {
+        shopify.toast.show(data.result.errors.join("; ") || "Error al agregar opción", {
+          isError: true,
+        });
+      }
+      return;
+    }
+
+    if ("intent" in data && data.intent === "rename-options") {
+      setRenameOptionsResult(data.result);
+      setSaveResults([]);
+      setDeleteResults([]);
+      setCreateResult(null);
+      setAddOptionResult(null);
+      setAddingProductId(null);
+      setRenamingProductId(null);
+
+      if (data.result.success) {
+        shopify.toast.show("Opciones y valores actualizados");
+
+        setProducts((current) =>
+          current.map((product) => {
+            if (product.id !== data.result.productId) return product;
+
+            const draftsById = new Map(
+              product.variants.map((variant) => [variant.id, drafts[variant.id]]),
+            );
+
+            return {
+              ...product,
+              options: data.result.options,
+              variants: data.result.variants.map((variant) => {
+                const draft = draftsById.get(variant.id);
+                if (!draft) return variant;
+
+                return {
+                  ...variant,
+                  sku: draft.sku,
+                  price: draft.price,
+                  compareAtPrice: draft.compareAtPrice,
+                  stock: draft.stock,
+                  barcode: draft.barcode,
+                };
+              }),
+            };
+          }),
+        );
+
+        setOriginals((current) => {
+          const next = { ...current };
+          for (const variant of data.result.variants) {
+            const existing = next[variant.id];
+            next[variant.id] = {
+              ...variantToDraft(variant),
+              handle: data.result.handle,
+              inventoryItemId: variant.inventoryItemId,
+              ...(existing
+                ? {
+                    sku: existing.sku,
+                    price: existing.price,
+                    compareAtPrice: existing.compareAtPrice,
+                    stock: existing.stock,
+                    barcode: existing.barcode,
+                  }
+                : {}),
+            };
+          }
+          return next;
+        });
+      } else {
+        shopify.toast.show(
+          data.result.errors.join("; ") || "Error al renombrar opciones",
+          { isError: true },
+        );
+      }
+    }
+  }, [fetcher.state, fetcher.data, shopify, drafts, products]);
 
   const applyFilters = () => {
     const params = new URLSearchParams();
@@ -394,6 +797,130 @@ export default function VariantsPage() {
     fetcher.submit(formData, { method: "post" });
   };
 
+  const deleteVariant = (productId: string, variant: VariantEditorVariant) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product || product.variants.length <= 1) {
+      shopify.toast.show(
+        "No se puede eliminar la única variante del producto.",
+        { isError: true },
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Eliminar la variante "${variant.label}" del producto "${product.title}"?\n\nEsta acción no se puede deshacer.`,
+    );
+    if (!confirmed) return;
+
+    const formData = new FormData();
+    formData.set("intent", "delete");
+    formData.set(
+      "deletions",
+      JSON.stringify([
+        {
+          productId,
+          variantId: variant.id,
+          handle: product.handle,
+        } satisfies VariantEditorDeleteRequest,
+      ]),
+    );
+    setSaveResults([]);
+    setDeleteResults([]);
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  const createVariants = (
+    productId: string,
+    variants: VariantEditorCreateInput[],
+  ) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) {
+      shopify.toast.show("Producto no encontrado.", { isError: true });
+      return;
+    }
+
+    setAddingProductId(productId);
+    setSaveResults([]);
+    setDeleteResults([]);
+    setCreateResult(null);
+    setAddOptionResult(null);
+    setRenameOptionsResult(null);
+    setRenamingProductId(null);
+
+    const formData = new FormData();
+    formData.set("intent", "create");
+    formData.set(
+      "create",
+      JSON.stringify({
+        productId,
+        handle: product.handle,
+        hasOnlyDefaultVariant: product.hasOnlyDefaultVariant,
+        variants,
+      } satisfies VariantEditorCreateRequest),
+    );
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  const addOption = (productId: string, optionName: string, values: string[]) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) {
+      shopify.toast.show("Producto no encontrado.", { isError: true });
+      return;
+    }
+
+    setAddingProductId(productId);
+    setSaveResults([]);
+    setDeleteResults([]);
+    setCreateResult(null);
+    setAddOptionResult(null);
+    setRenameOptionsResult(null);
+    setRenamingProductId(null);
+
+    const formData = new FormData();
+    formData.set("intent", "add-option");
+    formData.set(
+      "addOption",
+      JSON.stringify({
+        productId,
+        handle: product.handle,
+        optionName,
+        values,
+      } satisfies VariantEditorAddOptionRequest),
+    );
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  const renameOptions = (
+    productId: string,
+    changes: VariantEditorRenameOptionChange[],
+  ) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) {
+      shopify.toast.show("Producto no encontrado.", { isError: true });
+      return;
+    }
+
+    setRenamingProductId(productId);
+    setSaveResults([]);
+    setDeleteResults([]);
+    setCreateResult(null);
+    setAddOptionResult(null);
+    setRenameOptionsResult(null);
+    setAddingProductId(null);
+
+    const formData = new FormData();
+    formData.set("intent", "rename-options");
+    formData.set(
+      "renameOptions",
+      JSON.stringify({
+        productId,
+        handle: product.handle,
+        changes,
+      } satisfies VariantEditorRenameOptionsRequest),
+    );
+    fetcher.submit(formData, { method: "post" });
+  };
+
   const loadedCount = products.length;
   const totalCount = loaderData.totalCount || loadedCount;
 
@@ -406,7 +933,7 @@ export default function VariantsPage() {
       <CatalogPage>
         <CatalogHero
           title="Editor de variantes"
-          description="Edita precio, stock, SKU y código de barras directamente en tablas. Sin Excel."
+          description="Edita, crea y elimina variantes con fotos y tablas. Agrega tallas o colores sin usar Excel."
           stat={`${loadedCount.toLocaleString("es")} de ${totalCount.toLocaleString("es")} productos`}
         />
 
@@ -460,6 +987,20 @@ export default function VariantsPage() {
           />
         )}
 
+        {addingProductId && fetcher.state !== "idle" && (
+          <CatalogProgress
+            label="Creando variantes y opciones en Shopify…"
+            percent={60}
+          />
+        )}
+
+        {renamingProductId && fetcher.state !== "idle" && (
+          <CatalogProgress
+            label="Renombrando opciones en Shopify…"
+            percent={60}
+          />
+        )}
+
         <VariantEditorTable
           products={products}
           drafts={drafts}
@@ -470,6 +1011,12 @@ export default function VariantsPage() {
           onExpandAll={onExpandAll}
           onCollapseAll={onCollapseAll}
           onDraftChange={onDraftChange}
+          onDeleteVariant={deleteVariant}
+          onCreateVariants={createVariants}
+          onAddOption={addOption}
+          onRenameOptions={renameOptions}
+          addingProductId={addingProductId}
+          renamingProductId={renamingProductId}
         />
 
         {hasMore && (
@@ -483,36 +1030,54 @@ export default function VariantsPage() {
           </CatalogStepActions>
         )}
 
-        {saveResults.length > 0 && (
-          <s-section heading="Resultado del guardado">
+        {(saveResults.length > 0 ||
+          deleteResults.length > 0 ||
+          (createResult && !createResult.success) ||
+          (addOptionResult && !addOptionResult.success) ||
+          (renameOptionsResult && !renameOptionsResult.success)) && (
+          <s-section heading="Resultado de la operación">
             <CatalogSectionBlock>
               <CatalogBodyText>
-                {saveResults.filter((result) => result.success).length} correctos
-                , {saveResults.filter((result) => !result.success).length} con
-                error.
+                {createResult && !createResult.success
+                  ? createResult.errors.join("; ") || "Error al crear variantes."
+                  : addOptionResult && !addOptionResult.success
+                    ? addOptionResult.errors.join("; ") || "Error al agregar opción."
+                    : renameOptionsResult && !renameOptionsResult.success
+                      ? renameOptionsResult.errors.join("; ") ||
+                        "Error al renombrar opciones."
+                      : `${(saveResults.length > 0 ? saveResults : deleteResults).filter(
+                          (result) => result.success,
+                        ).length} correctos, ${(saveResults.length > 0
+                          ? saveResults
+                          : deleteResults
+                        ).filter((result) => !result.success).length} con error.`}
               </CatalogBodyText>
-              <div className="catalog-result-table">
-                <s-box padding="base" background="subdued" borderRadius="base">
-                  <table className="variant-editor__results">
-                    <thead>
-                      <tr>
-                        <th>Handle</th>
-                        <th>Estado</th>
-                        <th>Detalle</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {saveResults.map((result) => (
-                        <tr key={result.variantId}>
-                          <td>{result.handle}</td>
-                          <td>{result.success ? "OK" : "Error"}</td>
-                          <td>{result.errors.join("; ") || "—"}</td>
+              {saveResults.length > 0 || deleteResults.length > 0 ? (
+                <div className="catalog-result-table">
+                  <s-box padding="base" background="subdued" borderRadius="base">
+                    <table className="variant-editor__results">
+                      <thead>
+                        <tr>
+                          <th>Handle</th>
+                          <th>Estado</th>
+                          <th>Detalle</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </s-box>
-              </div>
+                      </thead>
+                      <tbody>
+                        {(saveResults.length > 0 ? saveResults : deleteResults).map(
+                          (result) => (
+                            <tr key={result.variantId}>
+                              <td>{result.handle}</td>
+                              <td>{result.success ? "OK" : "Error"}</td>
+                              <td>{result.errors.join("; ") || "—"}</td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </s-box>
+                </div>
+              ) : null}
             </CatalogSectionBlock>
           </s-section>
         )}

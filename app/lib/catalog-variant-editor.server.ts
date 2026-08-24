@@ -9,6 +9,18 @@ type AdminGraphql = (
   options?: { variables?: Record<string, unknown> },
 ) => Promise<Response>;
 
+export type VariantEditorOptionValue = {
+  id: string;
+  name: string;
+};
+
+export type VariantEditorOption = {
+  id: string;
+  name: string;
+  values: string[];
+  valueEntries: VariantEditorOptionValue[];
+};
+
 export type VariantEditorVariant = {
   id: string;
   label: string;
@@ -18,15 +30,22 @@ export type VariantEditorVariant = {
   stock: string;
   barcode: string;
   inventoryItemId: string | null;
+  imageUrl: string | null;
+  imageAlt: string;
 };
 
 export type VariantEditorProduct = {
   id: string;
   handle: string;
   title: string;
+  vendor: string;
   status: string;
   productType: string;
   tags: string[];
+  imageUrl: string | null;
+  imageAlt: string;
+  options: VariantEditorOption[];
+  hasOnlyDefaultVariant: boolean;
   variants: VariantEditorVariant[];
 };
 
@@ -54,6 +73,84 @@ export type VariantEditorSaveResult = {
   errors: string[];
 };
 
+export type VariantEditorDeleteRequest = {
+  productId: string;
+  variantId: string;
+  handle: string;
+};
+
+export type VariantEditorDeleteResult = {
+  variantId: string;
+  handle: string;
+  success: boolean;
+  errors: string[];
+};
+
+export type VariantEditorCreateInput = {
+  optionValues: Array<{ optionName: string; value: string }>;
+  price: string;
+  compareAtPrice: string;
+  sku: string;
+  stock: string;
+  barcode: string;
+};
+
+export type VariantEditorCreateRequest = {
+  productId: string;
+  handle: string;
+  hasOnlyDefaultVariant: boolean;
+  variants: VariantEditorCreateInput[];
+};
+
+export type VariantEditorCreateResult = {
+  productId: string;
+  handle: string;
+  success: boolean;
+  errors: string[];
+  variants: VariantEditorVariant[];
+  options: VariantEditorOption[];
+  hasOnlyDefaultVariant: boolean;
+  replaceAllVariants?: boolean;
+};
+
+export type VariantEditorAddOptionRequest = {
+  productId: string;
+  handle: string;
+  optionName: string;
+  values: string[];
+};
+
+export type VariantEditorAddOptionResult = {
+  productId: string;
+  handle: string;
+  success: boolean;
+  errors: string[];
+  variants: VariantEditorVariant[];
+  options: VariantEditorOption[];
+  hasOnlyDefaultVariant: boolean;
+};
+
+export type VariantEditorRenameOptionChange = {
+  optionId: string;
+  name?: string;
+  valueChanges?: Array<{ valueId: string; name: string }>;
+};
+
+export type VariantEditorRenameOptionsRequest = {
+  productId: string;
+  handle: string;
+  changes: VariantEditorRenameOptionChange[];
+};
+
+export type VariantEditorRenameOptionsResult = {
+  productId: string;
+  handle: string;
+  success: boolean;
+  errors: string[];
+  options: VariantEditorOption[];
+  variants: VariantEditorVariant[];
+};
+
 const VARIANT_EDITOR_PAGE_SIZE = 25;
 
 const PRODUCTS_QUERY = `#graphql
@@ -71,9 +168,27 @@ const PRODUCTS_QUERY = `#graphql
         id
         handle
         title
+        vendor
         status
         productType
         tags
+        hasOnlyDefaultVariant
+        options {
+          id
+          name
+          optionValues {
+            id
+            name
+          }
+        }
+        featuredMedia {
+          preview {
+            image {
+              url
+              altText
+            }
+          }
+        }
         variants(first: 100) {
           nodes {
             id
@@ -84,6 +199,10 @@ const PRODUCTS_QUERY = `#graphql
             inventoryQuantity
             inventoryItem {
               id
+            }
+            image {
+              url
+              altText
             }
             selectedOptions {
               name
@@ -111,6 +230,177 @@ const PRODUCT_VARIANTS_BULK_UPDATE = `#graphql
   ) {
     productVariantsBulkUpdate(productId: $productId, variants: $variants) {
       productVariants {
+        id
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const PRODUCT_OPTION_UPDATE = `#graphql
+  mutation VariantEditorOptionUpdate(
+    $productId: ID!
+    $option: OptionUpdateInput!
+    $optionValuesToUpdate: [OptionValueUpdateInput!]
+  ) {
+    productOptionUpdate(
+      productId: $productId
+      option: $option
+      optionValuesToUpdate: $optionValuesToUpdate
+    ) {
+      product {
+        id
+        hasOnlyDefaultVariant
+        options {
+          id
+          name
+          optionValues {
+            id
+            name
+          }
+        }
+        variants(first: 100) {
+          nodes {
+            id
+            sku
+            price
+            compareAtPrice
+            barcode
+            inventoryQuantity
+            inventoryItem {
+              id
+            }
+            image {
+              url
+              altText
+            }
+            selectedOptions {
+              name
+              value
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const PRODUCT_OPTIONS_CREATE = `#graphql
+  mutation VariantEditorOptionsCreate(
+    $productId: ID!
+    $options: [OptionCreateInput!]!
+    $variantStrategy: ProductOptionCreateVariantStrategy
+  ) {
+    productOptionsCreate(
+      productId: $productId
+      options: $options
+      variantStrategy: $variantStrategy
+    ) {
+      product {
+        id
+        hasOnlyDefaultVariant
+        options {
+          id
+          name
+          optionValues {
+            id
+            name
+          }
+        }
+        variants(first: 100) {
+          nodes {
+            id
+            sku
+            price
+            compareAtPrice
+            barcode
+            inventoryQuantity
+            inventoryItem {
+              id
+            }
+            image {
+              url
+              altText
+            }
+            selectedOptions {
+              name
+              value
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const PRODUCT_VARIANTS_BULK_CREATE = `#graphql
+  mutation VariantEditorBulkCreate(
+    $productId: ID!
+    $variants: [ProductVariantsBulkInput!]!
+    $strategy: ProductVariantsBulkCreateStrategy
+  ) {
+    productVariantsBulkCreate(
+      productId: $productId
+      variants: $variants
+      strategy: $strategy
+    ) {
+      product {
+        id
+        hasOnlyDefaultVariant
+        options {
+          id
+          name
+          optionValues {
+            id
+            name
+          }
+        }
+      }
+      productVariants {
+        id
+        sku
+        price
+        compareAtPrice
+        barcode
+        inventoryQuantity
+        inventoryItem {
+          id
+        }
+        image {
+          url
+          altText
+        }
+        selectedOptions {
+          name
+          value
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const PRODUCT_VARIANTS_BULK_DELETE = `#graphql
+  mutation VariantEditorBulkDelete(
+    $productId: ID!
+    $variantsIds: [ID!]!
+  ) {
+    productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+      product {
         id
       }
       userErrors {
@@ -154,6 +444,109 @@ function formatVariantLabel(
   return selectedOptions.map((o) => `${o.name}: ${o.value}`).join(" · ");
 }
 
+function mapOptions(
+  options: Array<{
+    id: string;
+    name: string;
+    optionValues: Array<{ id: string; name: string }>;
+  }>,
+): VariantEditorOption[] {
+  return options.map((option) => ({
+    id: option.id,
+    name: option.name,
+    values: option.optionValues.map((value) => value.name),
+    valueEntries: option.optionValues.map((value) => ({
+      id: value.id,
+      name: value.name,
+    })),
+  }));
+}
+
+function mapVariantNode(
+  variant: {
+    id: string;
+    sku: string | null;
+    price: string;
+    compareAtPrice: string | null;
+    barcode: string | null;
+    inventoryQuantity: number | null;
+    inventoryItem: { id: string } | null;
+    image: { url: string; altText: string | null } | null;
+    selectedOptions: Array<{ name: string; value: string }>;
+  },
+  fallbackAlt: string,
+): VariantEditorVariant {
+  return {
+    id: variant.id,
+    label: formatVariantLabel(variant.selectedOptions ?? []),
+    sku: variant.sku ?? "",
+    price: variant.price ?? "",
+    compareAtPrice: variant.compareAtPrice ?? "",
+    stock:
+      variant.inventoryQuantity != null
+        ? String(variant.inventoryQuantity)
+        : "",
+    barcode: variant.barcode ?? "",
+    inventoryItemId: variant.inventoryItem?.id ?? null,
+    imageUrl: variant.image?.url ?? null,
+    imageAlt: variant.image?.altText ?? fallbackAlt,
+  };
+}
+
+export function getEditableOptions(
+  product: Pick<VariantEditorProduct, "options" | "hasOnlyDefaultVariant">,
+): VariantEditorOption[] {
+  if (product.hasOnlyDefaultVariant) return [];
+  return product.options.filter((option) => option.name !== "Title");
+}
+
+export function isSimpleProduct(
+  product: Pick<VariantEditorProduct, "hasOnlyDefaultVariant" | "variants">,
+): boolean {
+  return product.hasOnlyDefaultVariant || product.variants.length === 0;
+}
+
+export function canAddSecondOption(
+  product: Pick<VariantEditorProduct, "options" | "hasOnlyDefaultVariant">,
+): boolean {
+  return !product.hasOnlyDefaultVariant && getEditableOptions(product).length === 1;
+}
+
+export function buildVariantCombinations(
+  optionSets: Array<{ optionName: string; values: string[] }>,
+  shared: Pick<
+    VariantEditorCreateInput,
+    "price" | "compareAtPrice" | "stock" | "barcode"
+  >,
+  skuBase = "",
+): VariantEditorCreateInput[] {
+  const combinations = optionSets.reduce<
+    Array<Array<{ optionName: string; value: string }>>
+  >((acc, set) => {
+    const values = set.values.filter(Boolean);
+    if (values.length === 0) return acc;
+
+    if (acc.length === 0) {
+      return values.map((value) => [{ optionName: set.optionName, value }]);
+    }
+
+    return acc.flatMap((combo) =>
+      values.map((value) => [...combo, { optionName: set.optionName, value }]),
+    );
+  }, []);
+
+  const normalizedSku = skuBase.trim();
+
+  return combinations.map((optionValues) => ({
+    optionValues,
+    ...shared,
+    sku:
+      normalizedSku.length > 0
+        ? [normalizedSku, ...optionValues.map((entry) => entry.value)].join("-")
+        : "",
+  }));
+}
+
 function buildSearchQuery(
   filters: ExportFilters,
   search: string,
@@ -172,9 +565,19 @@ function mapProduct(node: {
   id: string;
   handle: string;
   title: string;
+  vendor: string | null;
   status: string;
   productType: string;
   tags: string[];
+  featuredMedia: {
+    preview: { image: { url: string; altText: string | null } | null } | null;
+  } | null;
+  hasOnlyDefaultVariant: boolean;
+  options: Array<{
+    id: string;
+    name: string;
+    optionValues: Array<{ id: string; name: string }>;
+  }>;
   variants: {
     nodes: Array<{
       id: string;
@@ -184,30 +587,28 @@ function mapProduct(node: {
       barcode: string | null;
       inventoryQuantity: number | null;
       inventoryItem: { id: string } | null;
+      image: { url: string; altText: string | null } | null;
       selectedOptions: Array<{ name: string; value: string }>;
     }>;
   };
 }): VariantEditorProduct {
+  const productImage = node.featuredMedia?.preview?.image;
+
   return {
     id: node.id,
     handle: node.handle,
     title: node.title,
+    vendor: node.vendor ?? "",
     status: node.status,
     productType: node.productType ?? "",
     tags: node.tags ?? [],
-    variants: node.variants.nodes.map((variant) => ({
-      id: variant.id,
-      label: formatVariantLabel(variant.selectedOptions ?? []),
-      sku: variant.sku ?? "",
-      price: variant.price ?? "",
-      compareAtPrice: variant.compareAtPrice ?? "",
-      stock:
-        variant.inventoryQuantity != null
-          ? String(variant.inventoryQuantity)
-          : "",
-      barcode: variant.barcode ?? "",
-      inventoryItemId: variant.inventoryItem?.id ?? null,
-    })),
+    imageUrl: productImage?.url ?? null,
+    imageAlt: productImage?.altText ?? node.title,
+    options: mapOptions(node.options ?? []),
+    hasOnlyDefaultVariant: node.hasOnlyDefaultVariant ?? false,
+    variants: node.variants.nodes.map((variant) =>
+      mapVariantNode(variant, node.title),
+    ),
   };
 }
 
@@ -410,6 +811,379 @@ export async function applyVariantEditorChanges(
         handle: original?.handle ?? "",
         success: true,
         errors: [],
+      });
+    }
+  }
+
+  return results;
+}
+
+function buildVariantCreateInput(
+  input: VariantEditorCreateInput,
+): Record<string, unknown> {
+  const variant: Record<string, unknown> = {
+    optionValues: input.optionValues.map((optionValue) => ({
+      optionName: optionValue.optionName,
+      name: optionValue.value,
+    })),
+  };
+
+  if (input.price !== "") variant.price = input.price;
+  if (input.compareAtPrice !== "") {
+    variant.compareAtPrice = input.compareAtPrice;
+  }
+  if (input.barcode !== "") variant.barcode = input.barcode;
+  if (input.sku !== "") {
+    variant.inventoryItem = { sku: input.sku };
+  }
+
+  return variant;
+}
+
+export async function createVariantEditorVariants(
+  graphql: AdminGraphql,
+  request: VariantEditorCreateRequest,
+): Promise<VariantEditorCreateResult> {
+  if (request.variants.length === 0) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: ["Indica al menos una variante para crear."],
+      variants: [],
+      options: [],
+      hasOnlyDefaultVariant: request.hasOnlyDefaultVariant,
+    };
+  }
+
+  const needsStock = request.variants.some(
+    (variant) => variant.stock.trim() !== "",
+  );
+  const locationId = needsStock ? await fetchPrimaryLocationId(graphql) : null;
+
+  const response = await graphql(PRODUCT_VARIANTS_BULK_CREATE, {
+    variables: {
+      productId: request.productId,
+      variants: request.variants.map(buildVariantCreateInput),
+      strategy: request.hasOnlyDefaultVariant ? "REMOVE_STANDALONE_VARIANT" : null,
+    },
+  });
+  const json = await response.json();
+  const payload = json.data?.productVariantsBulkCreate;
+  const userErrors = collectUserErrors(payload?.userErrors);
+
+  if (userErrors.length > 0) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: userErrors,
+      variants: [],
+      options: mapOptions(payload?.product?.options ?? []),
+      hasOnlyDefaultVariant:
+        payload?.product?.hasOnlyDefaultVariant ?? request.hasOnlyDefaultVariant,
+    };
+  }
+
+  const createdVariants = (payload?.productVariants ?? []).map(
+    (variant: {
+      id: string;
+      sku: string | null;
+      price: string;
+      compareAtPrice: string | null;
+      barcode: string | null;
+      inventoryQuantity: number | null;
+      inventoryItem: { id: string } | null;
+      image: { url: string; altText: string | null } | null;
+      selectedOptions: Array<{ name: string; value: string }>;
+    }) => mapVariantNode(variant, request.handle),
+  );
+
+  const stockErrors: string[] = [];
+  if (locationId) {
+    for (const [index, input] of request.variants.entries()) {
+      if (input.stock.trim() === "") continue;
+
+      const createdVariant = createdVariants[index];
+      if (!createdVariant?.inventoryItemId) {
+        stockErrors.push(
+          `No se pudo asignar stock a "${createdVariant?.label ?? "la variante"}".`,
+        );
+        continue;
+      }
+
+      const inventoryResponse = await graphql(INVENTORY_SET_QUANTITIES, {
+        variables: {
+          input: {
+            name: "available",
+            reason: "correction",
+            quantities: [
+              {
+                inventoryItemId: createdVariant.inventoryItemId,
+                locationId,
+                quantity: Number.parseInt(input.stock, 10),
+                changeFromQuantity: null,
+              },
+            ],
+          },
+        },
+      });
+      const inventoryJson = await inventoryResponse.json();
+      const inventoryErrors = collectUserErrors(
+        inventoryJson.data?.inventorySetQuantities?.userErrors,
+      );
+      stockErrors.push(...inventoryErrors);
+
+      if (inventoryErrors.length === 0) {
+        createdVariant.stock = input.stock;
+      }
+    }
+  } else if (needsStock) {
+    stockErrors.push("No se encontró ubicación de inventario.");
+  }
+
+  return {
+    productId: request.productId,
+    handle: request.handle,
+    success: stockErrors.length === 0,
+    errors: stockErrors,
+    variants: createdVariants,
+    options: mapOptions(payload?.product?.options ?? []),
+    hasOnlyDefaultVariant:
+      payload?.product?.hasOnlyDefaultVariant ?? false,
+  };
+}
+
+export async function addVariantEditorOption(
+  graphql: AdminGraphql,
+  request: VariantEditorAddOptionRequest,
+): Promise<VariantEditorAddOptionResult> {
+  const optionName = request.optionName.trim();
+  const values = request.values.map((value) => value.trim()).filter(Boolean);
+
+  if (!optionName) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: ["Indica el nombre de la nueva opción (por ejemplo, Color)."],
+      variants: [],
+      options: [],
+      hasOnlyDefaultVariant: false,
+    };
+  }
+
+  if (values.length === 0) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: ["Indica al menos un valor para la nueva opción."],
+      variants: [],
+      options: [],
+      hasOnlyDefaultVariant: false,
+    };
+  }
+
+  const response = await graphql(PRODUCT_OPTIONS_CREATE, {
+    variables: {
+      productId: request.productId,
+      options: [
+        {
+          name: optionName,
+          values: values.map((name) => ({ name })),
+        },
+      ],
+      variantStrategy: "CREATE",
+    },
+  });
+  const json = await response.json();
+  const payload = json.data?.productOptionsCreate;
+  const userErrors = collectUserErrors(payload?.userErrors);
+
+  if (userErrors.length > 0) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: userErrors,
+      variants: [],
+      options: mapOptions(payload?.product?.options ?? []),
+      hasOnlyDefaultVariant:
+        payload?.product?.hasOnlyDefaultVariant ?? false,
+    };
+  }
+
+  const product = payload?.product;
+  const variants = (product?.variants?.nodes ?? []).map(
+    (variant: {
+      id: string;
+      sku: string | null;
+      price: string;
+      compareAtPrice: string | null;
+      barcode: string | null;
+      inventoryQuantity: number | null;
+      inventoryItem: { id: string } | null;
+      image: { url: string; altText: string | null } | null;
+      selectedOptions: Array<{ name: string; value: string }>;
+    }) => mapVariantNode(variant, request.handle),
+  );
+
+  return {
+    productId: request.productId,
+    handle: request.handle,
+    success: true,
+    errors: [],
+    variants,
+    options: mapOptions(product?.options ?? []),
+    hasOnlyDefaultVariant: product?.hasOnlyDefaultVariant ?? false,
+  };
+}
+
+export async function renameVariantEditorOptions(
+  graphql: AdminGraphql,
+  request: VariantEditorRenameOptionsRequest,
+): Promise<VariantEditorRenameOptionsResult> {
+  const changes = request.changes
+    .map((change) => ({
+      optionId: change.optionId,
+      name: change.name?.trim(),
+      valueChanges: (change.valueChanges ?? [])
+        .map((valueChange) => ({
+          valueId: valueChange.valueId,
+          name: valueChange.name.trim(),
+        }))
+        .filter((valueChange) => valueChange.name.length > 0),
+    }))
+    .filter(
+      (change) =>
+        Boolean(change.name) || (change.valueChanges?.length ?? 0) > 0,
+    );
+
+  if (changes.length === 0) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: ["No hay cambios para guardar."],
+      options: [],
+      variants: [],
+    };
+  }
+
+  const errors: string[] = [];
+  let latestProduct:
+    | {
+        options: Array<{
+          id: string;
+          name: string;
+          optionValues: Array<{ id: string; name: string }>;
+        }>;
+        variants: {
+          nodes: Array<{
+            id: string;
+            sku: string | null;
+            price: string;
+            compareAtPrice: string | null;
+            barcode: string | null;
+            inventoryQuantity: number | null;
+            inventoryItem: { id: string } | null;
+            image: { url: string; altText: string | null } | null;
+            selectedOptions: Array<{ name: string; value: string }>;
+          }>;
+        };
+      }
+    | null = null;
+
+  for (const change of changes) {
+    const option: Record<string, unknown> = { id: change.optionId };
+    if (change.name) {
+      option.name = change.name;
+    }
+
+    const response = await graphql(PRODUCT_OPTION_UPDATE, {
+      variables: {
+        productId: request.productId,
+        option,
+        optionValuesToUpdate:
+          change.valueChanges && change.valueChanges.length > 0
+            ? change.valueChanges.map((valueChange) => ({
+                id: valueChange.valueId,
+                name: valueChange.name,
+              }))
+            : null,
+      },
+    });
+    const json = await response.json();
+    const payload = json.data?.productOptionUpdate;
+    const userErrors = collectUserErrors(payload?.userErrors);
+
+    if (userErrors.length > 0) {
+      errors.push(...userErrors);
+      continue;
+    }
+
+    if (payload?.product) {
+      latestProduct = payload.product;
+    }
+  }
+
+  if (!latestProduct) {
+    return {
+      productId: request.productId,
+      handle: request.handle,
+      success: false,
+      errors: errors.length > 0 ? errors : ["No se pudieron actualizar las opciones."],
+      options: [],
+      variants: [],
+    };
+  }
+
+  const variants = (latestProduct.variants?.nodes ?? []).map((variant) =>
+    mapVariantNode(variant, request.handle),
+  );
+
+  return {
+    productId: request.productId,
+    handle: request.handle,
+    success: errors.length === 0,
+    errors,
+    options: mapOptions(latestProduct.options ?? []),
+    variants,
+  };
+}
+
+export async function deleteVariantEditorVariants(
+  graphql: AdminGraphql,
+  deletions: VariantEditorDeleteRequest[],
+): Promise<VariantEditorDeleteResult[]> {
+  const results: VariantEditorDeleteResult[] = [];
+  const byProduct = new Map<string, VariantEditorDeleteRequest[]>();
+
+  for (const deletion of deletions) {
+    const list = byProduct.get(deletion.productId) ?? [];
+    list.push(deletion);
+    byProduct.set(deletion.productId, list);
+  }
+
+  for (const [productId, productDeletions] of byProduct) {
+    const response = await graphql(PRODUCT_VARIANTS_BULK_DELETE, {
+      variables: {
+        productId,
+        variantsIds: productDeletions.map((deletion) => deletion.variantId),
+      },
+    });
+    const json = await response.json();
+    const userErrors = collectUserErrors(
+      json.data?.productVariantsBulkDelete?.userErrors,
+    );
+
+    for (const deletion of productDeletions) {
+      results.push({
+        variantId: deletion.variantId,
+        handle: deletion.handle,
+        success: userErrors.length === 0,
+        errors: userErrors,
       });
     }
   }
