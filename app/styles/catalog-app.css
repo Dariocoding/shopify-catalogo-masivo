@@ -18,6 +18,9 @@
   flex-direction: column;
   gap: var(--catalog-gap-page);
   padding: 0 0 16px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .catalog-page > s-section {
@@ -484,16 +487,32 @@
   border-radius: var(--catalog-radius);
   background: var(--catalog-surface);
   box-shadow: var(--catalog-shadow);
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
 }
 
 .variant-editor__toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--catalog-line);
   background: #fafafa;
+}
+
+.variant-editor__toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.variant-editor__scroll-hint {
+  font-size: 0.76rem;
+  color: var(--catalog-muted);
+  white-space: nowrap;
 }
 
 .variant-editor__toolbar-btn {
@@ -518,11 +537,17 @@
 
 .variant-editor__scroll {
   overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 .variant-editor__table {
-  width: 100%;
-  min-width: 1080px;
+  width: 1180px;
+  min-width: 1180px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.86rem;
 }
@@ -531,7 +556,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 10px 12px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--catalog-line);
   background: #f6f6f7;
   text-align: left;
@@ -539,6 +564,48 @@
   font-weight: 600;
   color: var(--catalog-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variant-editor__table th:nth-child(1),
+.variant-editor__table td:nth-child(1) {
+  width: 52px;
+}
+
+.variant-editor__table th:nth-child(2),
+.variant-editor__table td:nth-child(2) {
+  width: 190px;
+}
+
+.variant-editor__table th:nth-child(3),
+.variant-editor__table td:nth-child(3) {
+  width: 130px;
+}
+
+.variant-editor__table th:nth-child(4),
+.variant-editor__table td:nth-child(4) {
+  width: 96px;
+}
+
+.variant-editor__table th:nth-child(5),
+.variant-editor__table td:nth-child(5) {
+  width: 110px;
+}
+
+.variant-editor__table th:nth-child(6),
+.variant-editor__table td:nth-child(6) {
+  width: 88px;
+}
+
+.variant-editor__table th:nth-child(7),
+.variant-editor__table td:nth-child(7) {
+  width: 130px;
+}
+
+.variant-editor__table th:nth-child(8),
+.variant-editor__table td:nth-child(8) {
+  width: 96px;
 }
 
 .variant-editor__product-row td {
@@ -659,15 +726,17 @@
 }
 
 .variant-editor__cell--photo {
-  width: 56px;
-  min-width: 56px;
-  padding-left: 14px !important;
+  width: 52px;
+  min-width: 52px;
+  padding-left: 10px !important;
+  padding-right: 4px !important;
 }
 
 .variant-editor__cell--actions {
   width: 96px;
   min-width: 96px;
   text-align: center;
+  padding-right: 10px !important;
 }
 
 .variant-editor__variant-label {
@@ -748,6 +817,7 @@
 
 .variant-editor__add-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
@@ -770,7 +840,7 @@
 
 .variant-editor__add-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -874,6 +944,7 @@
 
 .variant-editor__options-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
@@ -931,9 +1002,10 @@
 }
 
 .variant-editor__row td {
-  padding: 8px 10px;
+  padding: 8px 6px;
   border-bottom: 1px solid #f0f0f0;
   vertical-align: middle;
+  overflow: hidden;
 }
 
 .variant-editor__row--dirty {
@@ -941,20 +1013,23 @@
 }
 
 .variant-editor__cell .catalog-input {
-  padding: 8px 10px;
-  font-size: 0.84rem;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  font-size: 0.82rem;
+  box-sizing: border-box;
 }
 
 .variant-editor__cell--label {
-  min-width: 180px;
-  max-width: 260px;
+  min-width: 0;
+  max-width: none;
   color: var(--catalog-muted);
   font-size: 0.82rem;
 }
 
 .variant-editor__cell--narrow {
-  width: 110px;
-  min-width: 110px;
+  width: auto;
+  min-width: 0;
 }
 
 .variant-editor__empty {

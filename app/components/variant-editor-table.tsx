@@ -233,22 +233,27 @@ export function VariantEditorTable({
   return (
     <div className="variant-editor">
       <div className="variant-editor__toolbar">
-        <button
-          type="button"
-          className="variant-editor__toolbar-btn"
-          onClick={onExpandAll}
-          disabled={disabled}
-        >
-          Expandir todos
-        </button>
-        <button
-          type="button"
-          className="variant-editor__toolbar-btn"
-          onClick={onCollapseAll}
-          disabled={disabled}
-        >
-          Contraer todos
-        </button>
+        <div className="variant-editor__toolbar-group">
+          <button
+            type="button"
+            className="variant-editor__toolbar-btn"
+            onClick={onExpandAll}
+            disabled={disabled}
+          >
+            Expandir todos
+          </button>
+          <button
+            type="button"
+            className="variant-editor__toolbar-btn"
+            onClick={onCollapseAll}
+            disabled={disabled}
+          >
+            Contraer todos
+          </button>
+        </div>
+        <span className="variant-editor__scroll-hint">
+          Desliza horizontalmente para ver todas las columnas →
+        </span>
       </div>
 
       <div className="variant-editor__scroll">
