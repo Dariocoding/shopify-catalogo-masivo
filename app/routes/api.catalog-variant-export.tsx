@@ -3,14 +3,11 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
   getCollectionOptions,
-  exportSimpleCatalog,
+  exportVariantCatalog,
 } from "../lib/catalog-export.server";
-import {
-  listExportHistory,
-  recordExportHistory,
-} from "../lib/catalog-export-history.server";
+import { recordExportHistory } from "../lib/catalog-export-history.server";
 import { parseExportFilters } from "../lib/catalog-export-filters";
-import { buildSimpleCatalogXlsxBuffer } from "../lib/catalog-xlsx.server";
+import { buildCatalogXlsxBuffer } from "../lib/catalog-xlsx.server";
 import { sanitizeExportFilename } from "../lib/catalog-schema";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -24,7 +21,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const filters = parseExportFilters(String(formData.get("filters") ?? ""));
     const filename = sanitizeExportFilename(
       String(formData.get("filename") ?? ""),
-      "productos",
+      "variantes",
     );
 
     const collections = await getCollectionOptions(admin.graphql);
@@ -32,8 +29,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       collections.map((collection) => [collection.id, collection.title]),
     );
 
-    const result = await exportSimpleCatalog(admin.graphql, filters);
-    const buffer = buildSimpleCatalogXlsxBuffer(
+    const result = await exportVariantCatalog(admin.graphql, filters);
+    const buffer = buildCatalogXlsxBuffer(
       result.rows,
       result.metafieldHeaders,
     );
@@ -43,7 +40,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       productCount: result.productCount,
       filters,
       collectionTitles,
-      onlyDefaultVariant: true,
+      onlyMultiVariant: true,
     });
 
     return new Response(new Uint8Array(buffer), {
@@ -54,7 +51,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
         "X-Export-Count": String(result.productCount),
-        "X-Export-Multi-Variant-Count": String(result.multiVariantProductCount),
+        "X-Export-Variant-Count": String(result.variantCount),
       },
     });
   } catch (error) {
@@ -62,7 +59,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const message =
       error instanceof Error
         ? error.message
-        : "Error al exportar productos.";
+        : "Error al exportar variantes.";
     return Response.json({ error: message }, { status: 500 });
   }
 };

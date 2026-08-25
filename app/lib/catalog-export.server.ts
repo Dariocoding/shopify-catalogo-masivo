@@ -1,5 +1,7 @@
 import {
   buildProductSearchQuery,
+  buildSimpleProductSearchQuery,
+  buildMultiVariantProductSearchQuery,
   type ExportFilters,
   EMPTY_EXPORT_FILTERS,
 } from "./catalog-export-filters";
@@ -67,6 +69,14 @@ export type ExportSummary = {
 
 export type SimpleExportSummary = ExportSummary & {
   multiVariantProductCount: number;
+};
+
+export type VariantExportSummary = ExportSummary & {
+  variantCount: number;
+};
+
+export type VariantExportResult = ExportResult & {
+  variantCount: number;
 };
 
 export type ExportBatchResult = {
@@ -331,7 +341,7 @@ export async function getSimpleExportSummary(
   filters: ExportFilters = EMPTY_EXPORT_FILTERS,
   previewSize = 5,
 ): Promise<SimpleExportSummary> {
-  const query = buildProductSearchQuery(filters);
+  const query = buildSimpleProductSearchQuery(filters);
   const [totalCount, previewPage, definitions] = await Promise.all([
     getProductCount(graphql, query),
     fetchProductPage(graphql, previewSize, null, query),
@@ -345,15 +355,12 @@ export async function getSimpleExportSummary(
   const preview = previewPage.nodes.map((product) =>
     productToSimpleRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
   );
-  const multiVariantProductCount = previewPage.nodes.filter(
-    (product) => product.variants.nodes.length > 1,
-  ).length;
 
   return {
     preview,
     productCount: totalCount,
     metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
-    multiVariantProductCount,
+    multiVariantProductCount: 0,
   };
 }
 
@@ -367,20 +374,16 @@ export async function exportSimpleCatalog(
   );
   const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
   const rows: CatalogRow[] = [];
-  const query = buildProductSearchQuery(filters);
+  const query = buildSimpleProductSearchQuery(filters);
   let after: string | null = null;
   let hasNextPage = true;
   let productCount = 0;
-  let multiVariantProductCount = 0;
 
   while (hasNextPage) {
     const page = await fetchProductPage(graphql, EXPORT_PAGE_SIZE, after, query);
 
     for (const product of page.nodes) {
       productCount += 1;
-      if (product.variants.nodes.length > 1) {
-        multiVariantProductCount += 1;
-      }
       rows.push(
         productToSimpleRow(product, metafieldHeaderSet, allowedMetafieldHeaders),
       );
@@ -394,7 +397,72 @@ export async function exportSimpleCatalog(
     rows,
     metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
     productCount,
-    multiVariantProductCount,
+    multiVariantProductCount: 0,
+  };
+}
+
+export async function getVariantExportSummary(
+  graphql: AdminGraphql,
+  filters: ExportFilters = EMPTY_EXPORT_FILTERS,
+  previewSize = 5,
+): Promise<VariantExportSummary> {
+  const query = buildMultiVariantProductSearchQuery(filters);
+  const [totalCount, previewPage, definitions] = await Promise.all([
+    getProductCount(graphql, query),
+    fetchProductPage(graphql, previewSize, null, query),
+    fetchCatalogProductMetafieldDefinitions(graphql),
+  ]);
+
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(definitions),
+  );
+  const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
+  const preview = previewPage.nodes.flatMap((product) =>
+    productToRows(product, metafieldHeaderSet, allowedMetafieldHeaders),
+  );
+
+  return {
+    preview,
+    productCount: totalCount,
+    variantCount: preview.length,
+    metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
+  };
+}
+
+export async function exportVariantCatalog(
+  graphql: AdminGraphql,
+  filters: ExportFilters = EMPTY_EXPORT_FILTERS,
+): Promise<VariantExportResult> {
+  const definitions = await fetchCatalogProductMetafieldDefinitions(graphql);
+  const allowedMetafieldHeaders = new Set(
+    metafieldHeadersFromDefinitions(definitions),
+  );
+  const metafieldHeaderSet = new Set(allowedMetafieldHeaders);
+  const rows: CatalogRow[] = [];
+  const query = buildMultiVariantProductSearchQuery(filters);
+  let after: string | null = null;
+  let hasNextPage = true;
+  let productCount = 0;
+
+  while (hasNextPage) {
+    const page = await fetchProductPage(graphql, EXPORT_PAGE_SIZE, after, query);
+
+    for (const product of page.nodes) {
+      productCount += 1;
+      rows.push(
+        ...productToRows(product, metafieldHeaderSet, allowedMetafieldHeaders),
+      );
+    }
+
+    hasNextPage = page.hasNextPage;
+    after = page.endCursor;
+  }
+
+  return {
+    rows,
+    metafieldHeaders: mergeMetafieldHeaders(definitions, metafieldHeaderSet),
+    productCount,
+    variantCount: rows.length,
   };
 }
 

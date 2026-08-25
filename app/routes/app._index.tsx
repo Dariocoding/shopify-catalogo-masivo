@@ -21,26 +21,30 @@ export default function Dashboard() {
     <s-page heading="Catálogo">
       <CatalogPage>
         <CatalogSteps>
-          <CatalogStep step={1} title="Edición masiva">
+          <CatalogStep step={1} title="Edición masiva sin variantes">
             <CatalogBodyText>
-              Descarga un Excel con una fila por producto, edita precio, stock
-              y tags, y súbelo de nuevo. Sin variantes ni IDs técnicos.
+              Productos simples (sin tallas ni colores). Descarga un Excel con
+              una fila por producto, edita precio, stock y tags, y súbelo de
+              nuevo.
             </CatalogBodyText>
             <CatalogStepActions>
               <Link to="/app/bulk-edit" style={{ textDecoration: "none" }}>
-                <s-button variant="primary">Edición masiva</s-button>
+                <s-button variant="primary">Edición masiva simple</s-button>
               </Link>
             </CatalogStepActions>
           </CatalogStep>
 
-          <CatalogStep step={2} title="Variantes (tallas, colores)">
+          <CatalogStep step={2} title="Edición masiva con variantes">
             <CatalogBodyText>
-              Tablas editables dentro de la app. Cambia precio, stock y SKU de
-              cada variante sin Excel.
+              Productos con tallas, colores u otras opciones. Descarga un Excel
+              con una fila por variante, edítalo y súbelo de nuevo.
             </CatalogBodyText>
             <CatalogStepActions>
-              <Link to="/app/variants" style={{ textDecoration: "none" }}>
-                <s-button variant="primary">Editor de variantes</s-button>
+              <Link
+                to="/app/bulk-edit-variants"
+                style={{ textDecoration: "none" }}
+              >
+                <s-button variant="primary">Edición masiva de variantes</s-button>
               </Link>
             </CatalogStepActions>
           </CatalogStep>

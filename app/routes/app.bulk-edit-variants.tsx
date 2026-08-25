@@ -37,11 +37,17 @@ import {
   importCatalogBatch,
   type ImportRowResult,
 } from "../lib/catalog-import.server";
-import { fetchCatalogProductMetafieldDefinitions, metafieldHeadersFromDefinitions } from "../lib/catalog-metafields.server";
-import { getSimpleExportSummary, getCollectionOptions } from "../lib/catalog-export.server";
+import {
+  fetchCatalogProductMetafieldDefinitions,
+  metafieldHeadersFromDefinitions,
+} from "../lib/catalog-metafields.server";
+import {
+  getVariantExportSummary,
+  getCollectionOptions,
+} from "../lib/catalog-export.server";
 import {
   IMPORT_BATCH_SIZE,
-  parseSimpleCatalogCsv,
+  parseCatalogCsv,
   sanitizeExportFilename,
   type ParsedCatalog,
 } from "../lib/catalog-schema";
@@ -49,7 +55,7 @@ import { downloadBlob } from "../lib/download-blob.client";
 import { spreadsheetFileToCsvText } from "../lib/parse-spreadsheet.client";
 import { authenticate } from "../shopify.server";
 
-const SIMPLE_EXPORT_API_PATH = "/api/catalog-simple-export";
+const VARIANT_EXPORT_API_PATH = "/api/catalog-variant-export";
 
 type PreviewData = {
   intent: "preview";
@@ -70,13 +76,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const [collections, summary, metafieldDefinitions] = await Promise.all([
     getCollectionOptions(admin.graphql),
-    getSimpleExportSummary(admin.graphql),
+    getVariantExportSummary(admin.graphql),
     fetchCatalogProductMetafieldDefinitions(admin.graphql),
   ]);
 
   return {
     productCount: summary.productCount,
-    defaultFilename: sanitizeExportFilename("", "productos"),
+    defaultFilename: sanitizeExportFilename("", "variantes"),
     collections,
     batchSize: IMPORT_BATCH_SIZE,
     metafieldColumns: metafieldDefinitions.map((definition) => ({
@@ -102,7 +108,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const allowedMetafieldHeaders = new Set(
       metafieldHeadersFromDefinitions(catalogMetafieldDefinitions),
     );
-    const parsed = parseSimpleCatalogCsv(csvText, allowedMetafieldHeaders);
+    const parsed = parseCatalogCsv(csvText, allowedMetafieldHeaders);
 
     if (intent === "preview") {
       return {
@@ -118,7 +124,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       parsed,
       offset,
       IMPORT_BATCH_SIZE,
-      { simpleMode: true },
     );
     const nextOffset = offset + IMPORT_BATCH_SIZE;
     const done = nextOffset >= parsed.rows.length;
@@ -136,11 +141,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { error: "Acción no reconocida." };
 };
 
-export default function BulkEditPage() {
+export default function BulkEditVariantsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const {
     productCount = 0,
-    defaultFilename = sanitizeExportFilename("", "productos"),
+    defaultFilename = sanitizeExportFilename("", "variantes"),
     collections = [],
     metafieldColumns = [],
   } = loaderData;
@@ -175,7 +180,7 @@ export default function BulkEditPage() {
   const filtersLabel = useMemo(
     () =>
       describeExportFilters(filters, collectionTitles, {
-        onlyDefaultVariant: true,
+        onlyMultiVariant: true,
       }),
     [filters, collectionTitles],
   );
@@ -207,7 +212,7 @@ export default function BulkEditPage() {
   const startDownload = async () => {
     if (exporting) return;
 
-    const finalFilename = sanitizeExportFilename(filename, "productos");
+    const finalFilename = sanitizeExportFilename(filename, "variantes");
     setExporting(true);
 
     try {
@@ -217,7 +222,7 @@ export default function BulkEditPage() {
 
       const response = await authenticatedAppFetch(
         shopify,
-        SIMPLE_EXPORT_API_PATH,
+        VARIANT_EXPORT_API_PATH,
         { method: "POST", body: formData },
       );
 
@@ -232,10 +237,11 @@ export default function BulkEditPage() {
       const blob = await response.blob();
       downloadBlob(blob, finalFilename);
 
-      const count = response.headers.get("X-Export-Count");
+      const productCountHeader = response.headers.get("X-Export-Count");
+      const variantCountHeader = response.headers.get("X-Export-Variant-Count");
       shopify.toast.show(
-        count
-          ? `Excel descargado (${count} productos). Revisa Descargas.`
+        productCountHeader && variantCountHeader
+          ? `Excel descargado (${variantCountHeader} variantes de ${productCountHeader} productos).`
           : "Excel descargado. Revisa tu carpeta de Descargas.",
       );
     } catch (error) {
@@ -334,22 +340,21 @@ export default function BulkEditPage() {
   };
 
   return (
-    <s-page heading="Edición masiva simple">
+    <s-page heading="Edición masiva de variantes">
       <Link to="/app" style={{ textDecoration: "none" }}>
         <s-button slot="primary-action">Volver al inicio</s-button>
       </Link>
 
       <CatalogPage>
         <CatalogHero
-          title="Edición masiva de productos"
-          description="Solo productos sin variantes (sin tallas, colores u otras opciones). Una fila por producto."
+          title="Edición masiva de variantes"
+          description="Solo productos con variantes (tallas, colores, etc.). Una fila por variante en el Excel."
           stat={`${productCount.toLocaleString("es")} productos`}
         />
 
         <CatalogBodyText>
-          Los productos con varias variantes no se incluyen aquí. Para
-          editarlos en Excel usa la{" "}
-          <Link to="/app/bulk-edit-variants">edición masiva de variantes</Link>.
+          Los productos sin variantes no se incluyen aquí. Para editarlos usa la{" "}
+          <Link to="/app/bulk-edit">edición masiva simple</Link>.
         </CatalogBodyText>
 
         <CatalogSteps>
@@ -375,6 +380,7 @@ export default function BulkEditPage() {
 
             <CatalogBodyText>
               Columnas: <code>handle</code>, <code>title</code>,{" "}
+              <code>variant_id</code>, <code>variant_options</code>,{" "}
               <code>sku</code>, <code>stock</code>, <code>price</code>,{" "}
               <code>product_type</code>, <code>tags</code>
               {metafieldColumns.length > 0 && (
@@ -408,9 +414,10 @@ export default function BulkEditPage() {
           <CatalogStep step={2} title="Editar y subir">
             <CatalogStack>
               <CatalogBodyText>
-                Edita el Excel en tu computadora (precio, stock, tags, etc.) y
-                súbelo aquí. Cada fila es un producto completo — no necesitas
-                tocar IDs de variantes.
+                Edita el Excel en tu computadora (precio, stock, SKU, etc.) y
+                súbelo aquí. Cada fila es una variante — usa{" "}
+                <code>variant_id</code> o <code>sku</code> para identificarla.
+                No modifiques <code>variant_options</code> (talla/color).
               </CatalogBodyText>
 
               <CatalogUpload
@@ -427,8 +434,8 @@ export default function BulkEditPage() {
             <CatalogStep step={3} title="Revisar y aplicar">
               <CatalogSectionBlock>
                 <CatalogBodyText>
-                  {preview.parsed.rows.length} producto
-                  {preview.parsed.rows.length === 1 ? "" : "s"} listo
+                  {preview.parsed.rows.length} variante
+                  {preview.parsed.rows.length === 1 ? "" : "s"} lista
                   {preview.parsed.rows.length === 1 ? "" : "s"} para importar.
                 </CatalogBodyText>
 

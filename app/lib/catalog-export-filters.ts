@@ -58,12 +58,37 @@ export function buildProductSearchQuery(filters: ExportFilters): string | undefi
   return parts.length > 0 ? parts.join(" AND ") : undefined;
 }
 
+/** Bulk-edit / simple export: only products with no option variants. */
+export function buildSimpleProductSearchQuery(
+  filters: ExportFilters,
+): string {
+  const base = buildProductSearchQuery(filters);
+  const onlyDefault = "has_only_default_variant:true";
+  return base ? `${base} AND ${onlyDefault}` : onlyDefault;
+}
+
+/** Bulk-edit variants: only products with option variants (talla, color, etc.). */
+export function buildMultiVariantProductSearchQuery(
+  filters: ExportFilters,
+): string {
+  const base = buildProductSearchQuery(filters);
+  const withVariants = "has_only_default_variant:false";
+  return base ? `${base} AND ${withVariants}` : withVariants;
+}
+
 export function describeExportFilters(
   filters: ExportFilters,
   collectionTitles: Record<string, string>,
+  options?: { onlyDefaultVariant?: boolean; onlyMultiVariant?: boolean },
 ): string {
   const parts: string[] = [];
 
+  if (options?.onlyDefaultVariant) {
+    parts.push("solo sin variantes");
+  }
+  if (options?.onlyMultiVariant) {
+    parts.push("solo con variantes");
+  }
   if (filters.collectionId) {
     const title =
       collectionTitles[filters.collectionId] ?? filters.collectionId;

@@ -38,11 +38,17 @@ export async function recordExportHistory(
     productCount: number;
     filters: ExportFilters;
     collectionTitles: Record<string, string>;
+    onlyDefaultVariant?: boolean;
+    onlyMultiVariant?: boolean;
   },
 ): Promise<void> {
   const filtersLabel = describeExportFilters(
     input.filters,
     input.collectionTitles,
+    {
+      onlyDefaultVariant: input.onlyDefaultVariant,
+      onlyMultiVariant: input.onlyMultiVariant,
+    },
   );
 
   await prisma.exportHistory.create({

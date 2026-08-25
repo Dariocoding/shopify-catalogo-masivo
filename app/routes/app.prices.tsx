@@ -3,8 +3,8 @@ import { redirect } from "react-router";
 
 import { authenticate } from "../shopify.server";
 
-/** Precios por variante: editor in-app. */
+/** Ruta legacy: redirige a edición masiva de variantes. */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
-  return redirect("/app/variants");
+  return redirect("/app/bulk-edit-variants");
 };
