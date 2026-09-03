@@ -255,6 +255,34 @@ function collectUserErrors(
     .filter(Boolean);
 }
 
+function collectGraphqlTopLevelErrors(json: {
+  errors?: Array<{ message?: string } | null | undefined> | null;
+}): string[] {
+  return collectUserErrors(json.errors);
+}
+
+/** Input para inventorySetQuantities en Admin API 2025-10 (ApiVersion.October25). */
+export function buildInventorySetQuantitiesInput(
+  inventoryItemId: string,
+  locationId: string,
+  quantity: number,
+): Record<string, unknown> {
+  return {
+    name: "available",
+    reason: "correction",
+    // En 2025-10 el opt-out de compare-and-swap es ignoreCompareQuantity.
+    // changeFromQuantity solo existe desde 2026-01 y rompe esta versión.
+    ignoreCompareQuantity: true,
+    quantities: [
+      {
+        inventoryItemId,
+        locationId,
+        quantity,
+      },
+    ],
+  };
+}
+
 async function fetchPrimaryLocationId(
   graphql: AdminGraphql,
 ): Promise<string | null> {
@@ -424,6 +452,7 @@ export async function importCatalogBatch(
         },
       });
       const productJson = await productResponse.json();
+      errors.push(...collectGraphqlTopLevelErrors(productJson));
       const productPayload = productJson.data?.productSet;
       errors.push(...collectUserErrors(productPayload?.userErrors));
       productId = productPayload?.product?.id ?? productId;
@@ -442,6 +471,7 @@ export async function importCatalogBatch(
           },
         });
         const variantJson = await variantResponse.json();
+        errors.push(...collectGraphqlTopLevelErrors(variantJson));
         errors.push(
           ...collectUserErrors(
             variantJson.data?.productVariantsBulkUpdate?.userErrors,
@@ -464,21 +494,15 @@ export async function importCatalogBatch(
         } else {
           const inventoryResponse = await graphql(INVENTORY_SET_QUANTITIES, {
             variables: {
-              input: {
-                name: "available",
-                reason: "correction",
-                quantities: [
-                  {
-                    inventoryItemId,
-                    locationId,
-                    quantity: Number.parseInt(row.stock, 10),
-                    changeFromQuantity: null,
-                  },
-                ],
-              },
+              input: buildInventorySetQuantitiesInput(
+                inventoryItemId,
+                locationId,
+                Number.parseInt(row.stock, 10),
+              ),
             },
           });
           const inventoryJson = await inventoryResponse.json();
+          errors.push(...collectGraphqlTopLevelErrors(inventoryJson));
           errors.push(
             ...collectUserErrors(
               inventoryJson.data?.inventorySetQuantities?.userErrors,
